@@ -3173,5 +3173,434 @@ data.dice;
 
 </script>
 
+
+<script type="module">
+
+import {
+getDatabase,
+ref,
+set,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const syncDb = getDatabase();
+
+function multiplayerEnhance(){
+
+const rollBtn = [...document.querySelectorAll("button")]
+.find(btn => btn.innerText.includes("Würfeln"));
+
+if(!rollBtn) return;
+
+if(rollBtn.dataset.syncAttached) return;
+
+rollBtn.dataset.syncAttached = "1";
+
+rollBtn.addEventListener("click",()=>{
+
+if(!window.currentOnlinePlayer) return;
+
+const dice = Math.floor(Math.random()*6)+1;
+
+set(
+ref(syncDb,"sharedDice"),
+{
+player:window.currentOnlinePlayer,
+value:dice,
+time:Date.now()
+}
+);
+
+});
+
+}
+
+setTimeout(multiplayerEnhance,2500);
+
+onValue(ref(syncDb,"sharedDice"),(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+console.log("GLOBAL DICE:",data);
+
+const roundBoxes =
+document.querySelectorAll("div");
+
+roundBoxes.forEach(el=>{
+
+if(el.innerText &&
+el.innerText.includes("Rundenpunkte")){
+
+const parent = el.parentElement;
+
+if(parent){
+
+parent.innerHTML = `
+<div style="font-size:20px;
+font-weight:800;
+opacity:.8;
+margin-bottom:10px;">
+🎲 Globaler Wurf
+</div>
+
+<div style="
+font-size:72px;
+font-weight:900;
+color:white;
+text-align:center;
+">
+${data.value}
+</div>
+
+<div style="
+margin-top:12px;
+font-size:18px;
+text-align:center;
+opacity:.9;
+">
+${data.player} würfelte
+</div>
+`;
+
+}
+
+}
+
+});
+
+});
+
+</script>
+
+
+<script type="module">
+
+import {
+getDatabase,
+ref,
+set,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const lobbyDb = getDatabase();
+
+window.selectedPlayerCount = 2;
+
+function createPlayerSelector(){
+
+if(document.getElementById("multiPlayerSelector")) return;
+
+const lobby =
+document.getElementById("onlineLobbyPanel");
+
+if(!lobby) return;
+
+const wrapper = document.createElement("div");
+
+wrapper.id = "multiPlayerSelector";
+
+wrapper.style.cssText = `
+margin-top:18px;
+padding-top:18px;
+border-top:1px solid rgba(255,255,255,.1);
+`;
+
+wrapper.innerHTML = `
+<div style="
+font-size:18px;
+font-weight:800;
+margin-bottom:12px;
+">
+🎮 Spieleranzahl
+</div>
+
+<div id="playerCountButtons"
+style="
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:10px;
+"></div>
+`;
+
+lobby.appendChild(wrapper);
+
+const btnContainer =
+document.getElementById("playerCountButtons");
+
+for(let i=2;i<=10;i++){
+
+const btn = document.createElement("button");
+
+btn.innerText = i;
+
+btn.style.cssText = `
+padding:10px;
+border:none;
+border-radius:14px;
+font-size:18px;
+font-weight:800;
+cursor:pointer;
+color:white;
+background:${i===2 ? "linear-gradient(90deg,#8b5cf6,#ec4899)" : "#1a1433"};
+`;
+
+btn.addEventListener("click",()=>{
+
+window.selectedPlayerCount = i;
+
+[...btnContainer.children].forEach(b=>{
+b.style.background="#1a1433";
+});
+
+btn.style.background =
+"linear-gradient(90deg,#8b5cf6,#ec4899)";
+
+set(
+ref(lobbyDb,"gameConfig"),
+{
+players:i,
+updated:Date.now()
+}
+);
+
+});
+
+btnContainer.appendChild(btn);
+
+}
+
+}
+
+setTimeout(createPlayerSelector,2500);
+
+onValue(ref(lobbyDb,"gameConfig"),(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+window.selectedPlayerCount = data.players;
+
+console.log("SPIELER:",data.players);
+
+const playerPanel =
+document.querySelector(".players") ||
+document.querySelector(".sidebar");
+
+if(playerPanel){
+
+const current =
+playerPanel.querySelectorAll(".online-generated-player");
+
+current.forEach(el=>el.remove());
+
+const existing =
+document.querySelectorAll("#onlinePlayersList div");
+
+let onlineCount = existing.length;
+
+let missing = data.players - onlineCount;
+
+for(let i=1;i<=missing;i++){
+
+const ai = document.createElement("div");
+
+ai.className = "online-generated-player";
+
+ai.style.cssText = `
+margin-top:14px;
+padding:16px;
+border-radius:18px;
+background:rgba(255,255,255,.05);
+font-weight:800;
+color:white;
+`;
+
+ai.innerHTML =
+"🤖 KI Spieler " + i;
+
+playerPanel.appendChild(ai);
+
+}
+
+}
+
+});
+
+</script>
+
+
+<script type="module">
+
+import {
+getDatabase,
+ref,
+remove,
+onValue,
+set
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const cleanDb = getDatabase();
+
+window.addEventListener("beforeunload",()=>{
+
+if(window.currentOnlinePlayer){
+
+remove(
+ref(cleanDb,"players/" + window.currentOnlinePlayer)
+);
+
+}
+
+});
+
+function removeOldBots(){
+
+const entries =
+document.querySelectorAll(".player");
+
+entries.forEach((el,index)=>{
+
+if(index > 0){
+
+const score =
+el.querySelector(".score");
+
+if(score){
+
+score.innerText = "0";
+
+}
+
+}
+
+});
+
+}
+
+setTimeout(removeOldBots,2500);
+
+onValue(ref(cleanDb,"players"),(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+const onlinePlayers =
+Object.values(data);
+
+const playerCards =
+document.querySelectorAll(".player");
+
+playerCards.forEach((card,index)=>{
+
+const nameEl =
+card.querySelector("div");
+
+if(!nameEl) return;
+
+if(onlinePlayers[index]){
+
+nameEl.innerHTML =
+"🌍 " + onlinePlayers[index].name;
+
+card.style.border =
+"1px solid #53f6ff";
+
+card.style.boxShadow =
+"0 0 24px rgba(83,246,255,.25)";
+
+}else{
+
+nameEl.innerHTML =
+"🤖 KI Spieler";
+
+card.style.border =
+"1px solid rgba(255,255,255,.08)";
+
+card.style.boxShadow = "none";
+
+}
+
+});
+
+});
+
+window.syncMainRoll = function(value){
+
+if(!window.currentOnlinePlayer) return;
+
+set(
+ref(cleanDb,"sharedMainRoll"),
+{
+player:window.currentOnlinePlayer,
+dice:value,
+updated:Date.now()
+}
+);
+
+};
+
+onValue(ref(cleanDb,"sharedMainRoll"),(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+const dice =
+document.querySelectorAll(".die");
+
+if(!dice.length) return;
+
+dice.forEach((d,index)=>{
+
+if(index === 0){
+
+d.innerHTML =
+'<div style="font-size:72px;font-weight:900;">'
++ data.dice +
+'</div>';
+
+}
+
+});
+
+const status =
+document.querySelector(".status");
+
+if(status){
+
+status.innerHTML =
+"🎲 " +
+data.player +
+" ist am Zug";
+
+}
+
+});
+
+const rollBtn =
+[...document.querySelectorAll("button")]
+.find(btn =>
+btn.innerText.includes("Würfeln")
+);
+
+if(rollBtn){
+
+rollBtn.addEventListener("click",()=>{
+
+const random =
+Math.floor(Math.random()*6)+1;
+
+syncMainRoll(random);
+
+});
+
+}
+
+</script>
+
 </body>
 </html>
