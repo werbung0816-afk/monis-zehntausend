@@ -3016,55 +3016,65 @@ console.log("🔥 Firebase verbunden");
 </script>
 
 
-<script>
 
-const playersRef = firebaseRef(firebaseDB, "players");
 
-function addPlayer(name) {
 
-const playerData = {
-name: name,
-score: 0,
-online: true,
-timestamp: Date.now()
+
+
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+getDatabase,
+ref,
+push,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+
+apiKey: "AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
+authDomain: "romme-hand.firebaseapp.com",
+databaseURL: "https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app",
+projectId: "romme-hand",
+storageBucket: "romme-hand.firebasestorage.app",
+messagingSenderId: "848283747928",
+appId: "1:848283747928:web:5ebdf681451ea87bdac2d"
+
 };
 
-firebasePush(playersRef, playerData);
+const app = initializeApp(firebaseConfig);
 
-}
+const db = getDatabase(app);
 
-function listenForPlayers() {
+console.log("🔥 Firebase verbunden");
 
-firebaseOnValue(playersRef, (snapshot) => {
+const playersRef = ref(db, "players");
 
-const data = snapshot.val();
-
-console.log("LIVE SPIELER:", data);
-
-});
-
-}
-
-listenForPlayers();
-
-</script>
-
-
-<script>
-
-function joinMultiplayer(){
+window.joinMultiplayer = function(){
 
 const input = document.getElementById("playerNameJoin");
 
-if(!input || input.value.trim() === "") return;
+if(!input) return;
 
-addPlayer(input.value);
+const name = input.value.trim();
+
+if(name === "") return;
+
+push(playersRef, {
+name:name,
+score:0,
+online:true,
+timestamp:Date.now()
+});
 
 input.value = "";
 
 }
 
-firebaseOnValue(playersRef, (snapshot) => {
+onValue(playersRef, (snapshot)=>{
 
 const data = snapshot.val();
 
@@ -3076,7 +3086,7 @@ container.innerHTML = "";
 
 if(!data) return;
 
-Object.values(data).forEach(player => {
+Object.values(data).forEach(player=>{
 
 const div = document.createElement("div");
 
@@ -3098,6 +3108,7 @@ console.log("LIVE SPIELER:", data);
 </script>
 
 </body>
+
 
 
 </html>
