@@ -3099,5 +3099,79 @@ data.dice +
 
 </script>
 
+
+<script type="module">
+
+import {
+getDatabase,
+ref,
+set,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const multiplayerDb = getDatabase();
+
+window.globalGameState = {
+activePlayer:null,
+lastRoll:null
+};
+
+function bindGlobalButtons(){
+
+const rollBtn = [...document.querySelectorAll("button")]
+.find(b => b.innerText.includes("Würfeln"));
+
+if(!rollBtn) return;
+
+rollBtn.addEventListener("click",()=>{
+
+if(!window.currentOnlinePlayer) return;
+
+const value = Math.floor(Math.random()*6)+1;
+
+window.globalGameState.lastRoll = value;
+
+set(
+ref(multiplayerDb,"liveGame"),
+{
+player:window.currentOnlinePlayer,
+dice:value,
+updated:Date.now()
+}
+);
+
+});
+
+}
+
+setTimeout(bindGlobalButtons,2000);
+
+onValue(ref(multiplayerDb,"liveGame"),(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+console.log("LIVE GAME:",data);
+
+const diceArea =
+document.querySelector(".status") ||
+document.querySelector(".dice-value") ||
+document.querySelector("h2");
+
+if(diceArea){
+
+diceArea.innerHTML =
+"🎲 " +
+data.player +
+" würfelte " +
+data.dice;
+
+}
+
+});
+
+</script>
+
 </body>
 </html>
