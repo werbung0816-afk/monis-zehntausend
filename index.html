@@ -3230,7 +3230,91 @@ syncTurnSystem(savedPlayer);
 
 </script>
 
+
+<script type="module">
+
+import {
+ref,
+set,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const globalRoom = "global-room";
+
+const gameStateRef = ref(db, "rooms/" + globalRoom + "/gameState");
+
+window.sharedRoll = function(player){
+
+const dice = Math.floor(Math.random()*6)+1;
+
+set(gameStateRef,{
+lastPlayer: player,
+diceValue: dice,
+updated: Date.now()
+});
+
+};
+
+onValue(gameStateRef,(snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+console.log("🎲 GLOBALER WURF:", data);
+
+const scoreBoxes = document.querySelectorAll("div");
+
+scoreBoxes.forEach(box=>{
+
+if(box.innerText.trim() === "0"){
+
+box.innerText = data.diceValue;
+
+}
+
+});
+
+const turnElement = document.getElementById("currentTurn");
+
+if(turnElement){
+
+turnElement.innerText =
+"🎲 Letzter Wurf: " + data.lastPlayer +
+" (" + data.diceValue + ")";
+
+}
+
+});
+
+document.addEventListener("click",(e)=>{
+
+const btn = e.target.closest("button");
+
+if(!btn) return;
+
+if(btn.innerText.includes("Würfeln")){
+
+const playerInput = document.getElementById("playerNameJoin");
+
+if(!playerInput) return;
+
+const player = playerInput.value.trim();
+
+if(player){
+
+sharedRoll(player);
+
+}
+
+}
+
+});
+
+</script>
+
 </body>
+
 
 
 
