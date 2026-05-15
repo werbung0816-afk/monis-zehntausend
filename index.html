@@ -2893,7 +2893,7 @@ document.getElementById('victoryTestBtn').click();
 </script>
 
 
-<!-- MULTIPLAYER CORE ENGINE -->
+<!-- FINAL MULTIPLAYER ENGINE -->
 <script type="module">
 
 import { initializeApp }
@@ -2903,53 +2903,53 @@ import {
 getDatabase,
 ref,
 set,
-onValue
+onValue,
+remove
 }
 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
-apiKey: "AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
-authDomain: "romme-hand.firebaseapp.com",
-databaseURL:
-"https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app",
-projectId: "romme-hand",
-storageBucket: "romme-hand.firebasestorage.app",
-messagingSenderId: "848283747928",
-appId:
-"1:848283747928:web:5ebdf681451ea87bdac2d"
+apiKey:"AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
+authDomain:"romme-hand.firebaseapp.com",
+databaseURL:"https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app",
+projectId:"romme-hand",
+storageBucket:"romme-hand.firebasestorage.app",
+messagingSenderId:"848283747928",
+appId:"1:848283747928:web:5ebdf681451ea87bdac2d"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-window.db = db;
+window.currentPlayerName = null;
 
 const gameRef = ref(db,"globalGameState");
 
-window.currentOnlinePlayer = null;
-
 const defaultState = {
-players: [],
-activePlayer: 0,
-dice: [1,1,1,1,1,1],
-roundScore: 0,
-totalScores: {},
-updated: Date.now()
+players:[],
+activePlayer:0,
+dice:[1,1,1,1,1,1],
+locked:[],
+roundScore:0,
+totalScores:{},
+winner:null,
+gameFinished:false,
+updated:Date.now()
 };
 
-function ensureLobby(){
+function ensurePanels(){
 
-if(document.getElementById("mpLobby")) return;
+if(document.getElementById("finalMpPanel")) return;
 
 const panel = document.createElement("div");
 
-panel.id = "mpLobby";
+panel.id = "finalMpPanel";
 
 panel.style.cssText = `
 position:fixed;
 top:18px;
 right:18px;
-width:300px;
+width:320px;
 padding:22px;
 border-radius:28px;
 background:rgba(10,12,38,.92);
@@ -2959,15 +2959,11 @@ z-index:999999;
 `;
 
 panel.innerHTML = `
-<div style="
-font-size:28px;
-font-weight:900;
-margin-bottom:14px;
-">
+<div style="font-size:28px;font-weight:900;margin-bottom:14px;">
 🌍 Multiplayer
 </div>
 
-<input id="mpName"
+<input id="mpNameInput"
 placeholder="Dein Name"
 style="
 width:100%;
@@ -2980,7 +2976,7 @@ font-size:18px;
 margin-bottom:12px;
 ">
 
-<button id="mpJoin"
+<button id="joinFinalGame"
 style="
 width:100%;
 padding:16px;
@@ -2996,22 +2992,41 @@ margin-bottom:18px;
 Beitreten
 </button>
 
-<div id="mpPlayers"></div>
+<div id="mpPlayerList"></div>
 `;
 
 document.body.appendChild(panel);
 
-document.getElementById("mpJoin")
+const scoreBoard = document.createElement("div");
+
+scoreBoard.id = "finalScoreBoard";
+
+scoreBoard.style.cssText = `
+position:fixed;
+top:18px;
+left:18px;
+width:320px;
+padding:22px;
+border-radius:28px;
+background:rgba(10,12,38,.92);
+backdrop-filter:blur(16px);
+border:1px solid rgba(255,255,255,.08);
+z-index:999999;
+`;
+
+document.body.appendChild(scoreBoard);
+
+document.getElementById("joinFinalGame")
 .addEventListener("click",joinGame);
 
 }
 
-ensureLobby();
+ensurePanels();
 
 function joinGame(){
 
 const input =
-document.getElementById("mpName");
+document.getElementById("mpNameInput");
 
 if(!input) return;
 
@@ -3019,7 +3034,7 @@ const name = input.value.trim();
 
 if(!name) return;
 
-window.currentOnlinePlayer = name;
+window.currentPlayerName = name;
 
 onValue(gameRef,(snapshot)=>{
 
@@ -3032,10 +3047,7 @@ return;
 
 }
 
-const exists =
-state.players.includes(name);
-
-if(!exists){
+if(!state.players.includes(name)){
 
 state.players.push(name);
 
@@ -3048,26 +3060,54 @@ updated:Date.now()
 
 }
 
-});
+},{onlyOnce:true});
 
 }
 
+window.addEventListener("beforeunload",()=>{
+
+if(!window.currentPlayerName) return;
+
+onValue(gameRef,(snapshot)=>{
+
+const state = snapshot.val();
+
+if(!state) return;
+
+state.players =
+state.players.filter(
+p => p !== window.currentPlayerName
+);
+
+delete state.totalScores[
+window.currentPlayerName
+];
+
+set(gameRef,{
+...state,
+updated:Date.now()
+});
+
+},{onlyOnce:true});
+
+});
+
 function renderPlayers(state){
 
-const panel =
-document.getElementById("mpPlayers");
+const list =
+document.getElementById("mpPlayerList");
 
-if(!panel) return;
+if(!list) return;
 
-panel.innerHTML = "";
+list.innerHTML = "";
 
 state.players.forEach((player,index)=>{
 
-const row =
-document.createElement("div");
-
 const active =
 index === state.activePlayer;
+
+const row =
+document.createElement("div");
 
 row.style.cssText = `
 padding:12px;
@@ -3081,12 +3121,78 @@ background:${active ?
 `;
 
 row.innerHTML =
-(active ? "🎲 " : "🟢 ") +
-player;
+(active ? "🎲 " : "🟢 ")
++ player;
 
-panel.appendChild(row);
+list.appendChild(row);
 
 });
+
+}
+
+function renderScores(state){
+
+const board =
+document.getElementById("finalScoreBoard");
+
+if(!board) return;
+
+let html = `
+<div style="
+font-size:28px;
+font-weight:900;
+margin-bottom:14px;
+">
+🏆 Punkte
+</div>
+`;
+
+state.players.forEach((player,index)=>{
+
+const active =
+index === state.activePlayer;
+
+html += `
+<div style="
+padding:12px;
+border-radius:16px;
+margin-bottom:10px;
+font-size:18px;
+font-weight:800;
+background:${active ?
+"linear-gradient(90deg,#53f6ff,#8f5fff)" :
+"rgba(255,255,255,.05)"};
+">
+${player}
+<br>
+<span style="font-size:30px;">
+${state.totalScores[player] || 0}
+</span>
+</div>
+`;
+
+});
+
+if(state.winner){
+
+html += `
+<div style="
+margin-top:20px;
+padding:18px;
+border-radius:20px;
+background:linear-gradient(90deg,#ffd84d,#ff8c42);
+font-size:24px;
+font-weight:900;
+text-align:center;
+color:#120523;
+">
+🏆 Sieger: ${state.winner}
+</div>
+`;
+
+}
+
+board.innerHTML = html;
 
 }
 
@@ -3101,37 +3207,233 @@ state.dice.forEach((value,index)=>{
 
 if(!dice[index]) return;
 
+const locked =
+state.locked.includes(index);
+
 dice[index].innerHTML =
 '<div style="font-size:72px;font-weight:900;">'
 + value +
 '</div>';
 
+dice[index].style.outline =
+locked ?
+"4px solid #53f6ff" :
+"none";
+
 });
 
 }
 
-function renderStatus(state){
+function calculateScore(dice){
 
-const status =
-document.querySelector(".status");
+let score = 0;
 
-if(!status) return;
+dice.forEach(v=>{
 
-const active =
-state.players[state.activePlayer] || "-";
+if(v === 1) score += 100;
+if(v === 5) score += 50;
 
-status.innerHTML =
-"🎲 Aktiver Spieler: <b>" +
-active +
-"</b>";
+});
+
+return score;
 
 }
 
-function renderGame(state){
+function attachDiceLocks(){
 
-renderPlayers(state);
-renderDice(state);
-renderStatus(state);
+const dice =
+document.querySelectorAll(".die");
+
+dice.forEach((die,index)=>{
+
+if(die.dataset.lockAttached) return;
+
+die.dataset.lockAttached = "1";
+
+die.addEventListener("click",()=>{
+
+const state = window.gameState;
+
+if(!state) return;
+
+const current =
+state.players[state.activePlayer];
+
+if(current !== window.currentPlayerName){
+return;
+}
+
+const locked = [...state.locked];
+
+if(locked.includes(index)){
+
+locked.splice(
+locked.indexOf(index),
+1
+);
+
+}else{
+
+locked.push(index);
+
+}
+
+set(gameRef,{
+...state,
+locked,
+updated:Date.now()
+});
+
+});
+
+});
+
+}
+
+function attachButtons(){
+
+const buttons =
+[...document.querySelectorAll("button")];
+
+const rollBtn =
+buttons.find(btn =>
+btn.innerText &&
+btn.innerText.includes("Würfeln")
+);
+
+const bankBtn =
+buttons.find(btn =>
+btn.innerText &&
+(
+btn.innerText.includes("Sichern") ||
+btn.innerText.includes("Bank")
+)
+);
+
+const endBtn =
+buttons.find(btn =>
+btn.innerText &&
+(
+btn.innerText.includes("Ende") ||
+btn.innerText.includes("Zug")
+)
+);
+
+if(rollBtn && !rollBtn.dataset.finalAttached){
+
+rollBtn.dataset.finalAttached = "1";
+
+rollBtn.addEventListener("click",()=>{
+
+const state = window.gameState;
+
+if(!state) return;
+
+const current =
+state.players[state.activePlayer];
+
+if(current !== window.currentPlayerName){
+return;
+}
+
+const dice = [...state.dice];
+
+dice.forEach((value,index)=>{
+
+if(!state.locked.includes(index)){
+
+dice[index] =
+Math.floor(Math.random()*6)+1;
+
+}
+
+});
+
+const roundScore =
+calculateScore(dice);
+
+set(gameRef,{
+...state,
+dice,
+roundScore,
+updated:Date.now()
+});
+
+});
+
+}
+
+if(bankBtn && !bankBtn.dataset.bankAttached){
+
+bankBtn.dataset.bankAttached = "1";
+
+bankBtn.addEventListener("click",()=>{
+
+const state = window.gameState;
+
+if(!state) return;
+
+const current =
+state.players[state.activePlayer];
+
+if(current !== window.currentPlayerName){
+return;
+}
+
+const totals = {
+...state.totalScores
+};
+
+totals[current] =
+(totals[current] || 0)
++ state.roundScore;
+
+let winner = null;
+
+if(totals[current] >= 10000){
+
+winner = current;
+
+}
+
+set(gameRef,{
+...state,
+totalScores:totals,
+winner,
+locked:[],
+roundScore:0,
+updated:Date.now()
+});
+
+});
+
+}
+
+if(endBtn && !endBtn.dataset.endAttached){
+
+endBtn.dataset.endAttached = "1";
+
+endBtn.addEventListener("click",()=>{
+
+const state = window.gameState;
+
+if(!state) return;
+
+const next =
+(state.activePlayer + 1)
+% state.players.length;
+
+set(gameRef,{
+...state,
+activePlayer:next,
+locked:[],
+roundScore:0,
+updated:Date.now()
+});
+
+});
+
+}
 
 }
 
@@ -3143,61 +3445,91 @@ if(!state) return;
 
 window.gameState = state;
 
-renderGame(state);
+renderPlayers(state);
+renderScores(state);
+renderDice(state);
 
-});
+const status =
+document.querySelector(".status");
 
-function attachRollButton(){
+if(status){
 
-const buttons =
-[...document.querySelectorAll("button")];
+const active =
+state.players[state.activePlayer] || "-";
 
-const rollBtn =
-buttons.find(btn =>
-btn.innerText &&
-btn.innerText.includes("Würfeln")
-);
-
-if(!rollBtn) return;
-
-if(rollBtn.dataset.mpAttached) return;
-
-rollBtn.dataset.mpAttached = "1";
-
-rollBtn.addEventListener("click",()=>{
-
-const state = window.gameState;
-
-if(!state) return;
-
-const current =
-state.players[state.activePlayer];
-
-if(current !== window.currentOnlinePlayer){
-return;
-}
-
-const newDice =
-state.dice.map(()=>
-Math.floor(Math.random()*6)+1
-);
-
-const next =
-(state.activePlayer + 1)
-% state.players.length;
-
-set(gameRef,{
-...state,
-dice:newDice,
-activePlayer:next,
-updated:Date.now()
-});
-
-});
+status.innerHTML =
+"🎲 Aktiver Spieler: <b>"
++ active +
+"</b><br>Rundenpunkte: "
++ state.roundScore;
 
 }
 
-setTimeout(attachRollButton,3000);
+attachDiceLocks();
+attachButtons();
+
+});
+
+</script>
+
+
+<script type="module">
+
+function advancedScore(dice){
+
+const counts = {};
+
+dice.forEach(v=>{
+counts[v] = (counts[v] || 0) + 1;
+});
+
+let score = 0;
+
+Object.entries(counts).forEach(([num,count])=>{
+
+num = parseInt(num);
+
+if(count >= 3){
+
+if(num === 1){
+score += 1000;
+}else{
+score += num * 100;
+}
+
+const extra = count - 3;
+
+if(num === 1){
+score += extra * 100;
+}
+
+if(num === 5){
+score += extra * 50;
+}
+
+}else{
+
+if(num === 1){
+score += count * 100;
+}
+
+if(num === 5){
+score += count * 50;
+}
+
+}
+
+});
+
+return score;
+
+}
+
+window.advancedScore = advancedScore;
+
+const originalSet = window.set;
+
+console.log("🎮 Advanced rules loaded");
 
 </script>
 
