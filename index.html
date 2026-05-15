@@ -3107,6 +3107,62 @@ console.log("LIVE SPIELER:", data);
 
 </script>
 
+
+<div id="roomPanel" style="
+position:fixed;
+top:220px;
+right:20px;
+width:260px;
+background:rgba(15,15,35,.95);
+padding:18px;
+border-radius:22px;
+border:1px solid rgba(255,255,255,.12);
+z-index:999999;
+backdrop-filter:blur(10px);
+">
+
+<div style="font-size:24px;font-weight:800;margin-bottom:12px;">
+🎮 Raum
+</div>
+
+<input id="roomCodeInput"
+placeholder="Raumcode"
+style="
+width:100%;
+padding:12px;
+border-radius:12px;
+border:none;
+margin-bottom:10px;
+font-size:16px;
+">
+
+<button onclick="joinRoom()"
+style="
+width:100%;
+padding:12px;
+border:none;
+border-radius:12px;
+font-size:16px;
+font-weight:800;
+cursor:pointer;
+background:linear-gradient(90deg,#8b5cf6,#ec4899);
+color:white;
+">
+Raum beitreten
+</button>
+
+<div id="currentRoom"
+style="margin-top:14px;font-size:14px;opacity:.85;">
+Kein Raum verbunden
+</div>
+
+<div id="currentTurn"
+style="margin-top:10px;font-size:18px;font-weight:700;">
+Kein aktiver Zug
+</div>
+
+</div>
+
 </body>
 
 
