@@ -3222,17 +3222,11 @@ window.joinRoom = function(){
 
 oldJoin();
 
-const playerInput = document.getElementById("playerNameJoin");
+const savedPlayer = window.currentPlayerName;
 
-if(playerInput){
+if(savedPlayer){
 
-const player = playerInput.value.trim();
-
-if(player){
-
-syncTurnSystem(player);
-
-}
+syncTurnSystem(savedPlayer);
 
 }
 
