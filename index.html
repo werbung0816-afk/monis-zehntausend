@@ -2893,21 +2893,21 @@ document.getElementById('victoryTestBtn').click();
 </script>
 
 
-<!-- FIREBASE MULTIPLAYER -->
+<!-- MULTIPLAYER CORE ENGINE -->
 <script type="module">
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 import {
 getDatabase,
 ref,
 set,
-push,
 onValue
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+}
+from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
-
 apiKey: "AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
 authDomain: "romme-hand.firebaseapp.com",
 databaseURL:
@@ -2917,47 +2917,57 @@ storageBucket: "romme-hand.firebasestorage.app",
 messagingSenderId: "848283747928",
 appId:
 "1:848283747928:web:5ebdf681451ea87bdac2d"
-
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-console.log("🔥 Firebase Multiplayer aktiv");
+window.db = db;
+
+const gameRef = ref(db,"globalGameState");
 
 window.currentOnlinePlayer = null;
 
-const playersRef = ref(db,"players");
-const gameRef = ref(db,"globalGame");
+const defaultState = {
+players: [],
+activePlayer: 0,
+dice: [1,1,1,1,1,1],
+roundScore: 0,
+totalScores: {},
+updated: Date.now()
+};
 
-function ensureOnlinePanel(){
+function ensureLobby(){
 
-if(document.getElementById("onlineLobbyPanel")) return;
+if(document.getElementById("mpLobby")) return;
 
 const panel = document.createElement("div");
 
-panel.id = "onlineLobbyPanel";
+panel.id = "mpLobby";
 
 panel.style.cssText = `
 position:fixed;
-top:20px;
-right:20px;
+top:18px;
+right:18px;
 width:300px;
-background:rgba(10,12,38,.92);
-border:1px solid rgba(255,255,255,.1);
-border-radius:28px;
 padding:22px;
-backdrop-filter:blur(18px);
+border-radius:28px;
+background:rgba(10,12,38,.92);
+backdrop-filter:blur(16px);
+border:1px solid rgba(255,255,255,.08);
 z-index:999999;
-box-shadow:0 0 35px rgba(0,0,0,.35);
 `;
 
 panel.innerHTML = `
-<div style="font-size:28px;font-weight:900;margin-bottom:14px;">
-🌍 Online Lobby
+<div style="
+font-size:28px;
+font-weight:900;
+margin-bottom:14px;
+">
+🌍 Multiplayer
 </div>
 
-<input id="onlineNameInput"
+<input id="mpName"
 placeholder="Dein Name"
 style="
 width:100%;
@@ -2970,7 +2980,7 @@ font-size:18px;
 margin-bottom:12px;
 ">
 
-<button id="joinOnlineBtn"
+<button id="mpJoin"
 style="
 width:100%;
 padding:16px;
@@ -2986,22 +2996,22 @@ margin-bottom:18px;
 Beitreten
 </button>
 
-<div id="onlinePlayersList"></div>
+<div id="mpPlayers"></div>
 `;
 
 document.body.appendChild(panel);
 
-document.getElementById("joinOnlineBtn")
-.addEventListener("click", joinOnlineLobby);
+document.getElementById("mpJoin")
+.addEventListener("click",joinGame);
 
 }
 
-ensureOnlinePanel();
+ensureLobby();
 
-function joinOnlineLobby(){
+function joinGame(){
 
 const input =
-document.getElementById("onlineNameInput");
+document.getElementById("mpName");
 
 if(!input) return;
 
@@ -3011,691 +3021,183 @@ if(!name) return;
 
 window.currentOnlinePlayer = name;
 
-set(
-ref(db,"players/" + name),
-{
-name:name,
-online:true,
-score:0,
+onValue(gameRef,(snapshot)=>{
+
+let state = snapshot.val();
+
+if(!state){
+
+set(gameRef,defaultState);
+return;
+
+}
+
+const exists =
+state.players.includes(name);
+
+if(!exists){
+
+state.players.push(name);
+
+state.totalScores[name] = 0;
+
+set(gameRef,{
+...state,
 updated:Date.now()
-}
-);
-
-console.log("ONLINE:", name);
+});
 
 }
 
-onValue(playersRef,(snapshot)=>{
+});
 
-const data = snapshot.val();
+}
 
-const list =
-document.getElementById("onlinePlayersList");
+function renderPlayers(state){
 
-if(!list) return;
+const panel =
+document.getElementById("mpPlayers");
 
-list.innerHTML = "";
+if(!panel) return;
 
-if(!data) return;
+panel.innerHTML = "";
 
-Object.values(data).forEach(player=>{
+state.players.forEach((player,index)=>{
 
 const row =
 document.createElement("div");
 
+const active =
+index === state.activePlayer;
+
 row.style.cssText = `
 padding:12px;
 border-radius:16px;
-background:rgba(255,255,255,.05);
 margin-bottom:10px;
 font-size:18px;
-font-weight:700;
+font-weight:800;
+background:${active ?
+"linear-gradient(90deg,#53f6ff,#8f5fff)" :
+"rgba(255,255,255,.05)"};
 `;
 
 row.innerHTML =
-"🟢 " + player.name;
+(active ? "🎲 " : "🟢 ") +
+player;
 
-list.appendChild(row);
-
-});
-
-});
-
-window.syncGlobalRoll = function(value){
-
-if(!window.currentOnlinePlayer) return;
-
-set(gameRef,{
-player:window.currentOnlinePlayer,
-dice:value,
-updated:Date.now()
-});
-
-};
-
-onValue(gameRef,(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-console.log("🎲 GLOBAL:", data);
-
-const status =
-document.querySelector(".status");
-
-if(status){
-
-status.innerHTML =
-"🌍 <b>" +
-data.player +
-"</b> würfelte <b>" +
-data.dice +
-"</b>";
-
-}
-
-});
-
-</script>
-
-
-<script type="module">
-
-import {
-getDatabase,
-ref,
-set,
-onValue
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const multiplayerDb = getDatabase();
-
-window.globalGameState = {
-activePlayer:null,
-lastRoll:null
-};
-
-function bindGlobalButtons(){
-
-const rollBtn = [...document.querySelectorAll("button")]
-.find(b => b.innerText.includes("Würfeln"));
-
-if(!rollBtn) return;
-
-rollBtn.addEventListener("click",()=>{
-
-if(!window.currentOnlinePlayer) return;
-
-const value = Math.floor(Math.random()*6)+1;
-
-window.globalGameState.lastRoll = value;
-
-set(
-ref(multiplayerDb,"liveGame"),
-{
-player:window.currentOnlinePlayer,
-dice:value,
-updated:Date.now()
-}
-);
+panel.appendChild(row);
 
 });
 
 }
 
-setTimeout(bindGlobalButtons,2000);
-
-onValue(ref(multiplayerDb,"liveGame"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-console.log("LIVE GAME:",data);
-
-const diceArea =
-document.querySelector(".status") ||
-document.querySelector(".dice-value") ||
-document.querySelector("h2");
-
-if(diceArea){
-
-diceArea.innerHTML =
-"🎲 " +
-data.player +
-" würfelte " +
-data.dice;
-
-}
-
-});
-
-</script>
-
-
-<script type="module">
-
-import {
-getDatabase,
-ref,
-set,
-onValue
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const syncDb = getDatabase();
-
-function multiplayerEnhance(){
-
-const rollBtn = [...document.querySelectorAll("button")]
-.find(btn => btn.innerText.includes("Würfeln"));
-
-if(!rollBtn) return;
-
-if(rollBtn.dataset.syncAttached) return;
-
-rollBtn.dataset.syncAttached = "1";
-
-rollBtn.addEventListener("click",()=>{
-
-if(!window.currentOnlinePlayer) return;
-
-const dice = Math.floor(Math.random()*6)+1;
-
-set(
-ref(syncDb,"sharedDice"),
-{
-player:window.currentOnlinePlayer,
-value:dice,
-time:Date.now()
-}
-);
-
-});
-
-}
-
-setTimeout(multiplayerEnhance,2500);
-
-onValue(ref(syncDb,"sharedDice"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-console.log("GLOBAL DICE:",data);
-
-const roundBoxes =
-document.querySelectorAll("div");
-
-roundBoxes.forEach(el=>{
-
-if(el.innerText &&
-el.innerText.includes("Rundenpunkte")){
-
-const parent = el.parentElement;
-
-if(parent){
-
-
-const existingGlobal = document.getElementById("globalDiceOverlay");
-
-if(!existingGlobal){
-
-const overlay = document.createElement("div");
-
-overlay.id = "globalDiceOverlay";
-
-overlay.style.cssText = `
-position:fixed;
-top:22px;
-left:50%;
-transform:translateX(-50%);
-padding:18px 34px;
-border-radius:28px;
-background:rgba(15,15,40,.88);
-backdrop-filter:blur(16px);
-border:1px solid rgba(255,255,255,.08);
-font-size:28px;
-font-weight:900;
-color:white;
-z-index:999999;
-box-shadow:0 0 35px rgba(0,0,0,.35);
-`;
-
-document.body.appendChild(overlay);
-
-}
-
-document.getElementById("globalDiceOverlay").innerHTML =
-"🎲 " + data.player + " würfelte " + data.value;
-
-
-}
-
-}
-
-});
-
-});
-
-</script>
-
-
-<script type="module">
-
-import {
-getDatabase,
-ref,
-set,
-onValue
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const lobbyDb = getDatabase();
-
-window.selectedPlayerCount = 2;
-
-function createPlayerSelector(){
-
-if(document.getElementById("multiPlayerSelector")) return;
-
-const lobby =
-document.getElementById("onlineLobbyPanel");
-
-if(!lobby) return;
-
-const wrapper = document.createElement("div");
-
-wrapper.id = "multiPlayerSelector";
-
-wrapper.style.cssText = `
-margin-top:18px;
-padding-top:18px;
-border-top:1px solid rgba(255,255,255,.1);
-`;
-
-wrapper.innerHTML = `
-<div style="
-font-size:18px;
-font-weight:800;
-margin-bottom:12px;
-">
-🎮 Spieleranzahl
-</div>
-
-<div id="playerCountButtons"
-style="
-display:grid;
-grid-template-columns:repeat(3,1fr);
-gap:10px;
-"></div>
-`;
-
-lobby.appendChild(wrapper);
-
-const btnContainer =
-document.getElementById("playerCountButtons");
-
-for(let i=2;i<=10;i++){
-
-const btn = document.createElement("button");
-
-btn.innerText = i;
-
-btn.style.cssText = `
-padding:10px;
-border:none;
-border-radius:14px;
-font-size:18px;
-font-weight:800;
-cursor:pointer;
-color:white;
-background:${i===2 ? "linear-gradient(90deg,#8b5cf6,#ec4899)" : "#1a1433"};
-`;
-
-btn.addEventListener("click",()=>{
-
-window.selectedPlayerCount = i;
-
-[...btnContainer.children].forEach(b=>{
-b.style.background="#1a1433";
-});
-
-btn.style.background =
-"linear-gradient(90deg,#8b5cf6,#ec4899)";
-
-set(
-ref(lobbyDb,"gameConfig"),
-{
-players:i,
-updated:Date.now()
-}
-);
-
-});
-
-btnContainer.appendChild(btn);
-
-}
-
-}
-
-setTimeout(createPlayerSelector,2500);
-
-onValue(ref(lobbyDb,"gameConfig"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-window.selectedPlayerCount = data.players;
-
-console.log("SPIELER:",data.players);
-
-const playerPanel =
-document.querySelector(".players") ||
-document.querySelector(".sidebar");
-
-if(playerPanel){
-
-const current =
-playerPanel.querySelectorAll(".online-generated-player");
-
-current.forEach(el=>el.remove());
-
-const existing =
-document.querySelectorAll("#onlinePlayersList div");
-
-let onlineCount = existing.length;
-
-let missing = data.players - onlineCount;
-
-for(let i=1;i<=missing;i++){
-
-const ai = document.createElement("div");
-
-ai.className = "online-generated-player";
-
-ai.style.cssText = `
-margin-top:14px;
-padding:16px;
-border-radius:18px;
-background:rgba(255,255,255,.05);
-font-weight:800;
-color:white;
-`;
-
-ai.innerHTML =
-"🤖 KI Spieler " + i;
-
-playerPanel.appendChild(ai);
-
-}
-
-}
-
-});
-
-</script>
-
-
-<script type="module">
-
-import {
-getDatabase,
-ref,
-remove,
-onValue,
-set
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const cleanDb = getDatabase();
-
-window.addEventListener("beforeunload",()=>{
-
-if(window.currentOnlinePlayer){
-
-remove(
-ref(cleanDb,"players/" + window.currentOnlinePlayer)
-);
-
-}
-
-});
-
-function removeOldBots(){
-
-const entries =
-document.querySelectorAll(".player");
-
-entries.forEach((el,index)=>{
-
-if(index > 0){
-
-const score =
-el.querySelector(".score");
-
-if(score){
-
-score.innerText = "0";
-
-}
-
-}
-
-});
-
-}
-
-setTimeout(removeOldBots,2500);
-
-onValue(ref(cleanDb,"players"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-const onlinePlayers =
-Object.values(data);
-
-const playerCards =
-document.querySelectorAll(".player");
-
-playerCards.forEach((card,index)=>{
-
-const nameEl =
-card.querySelector("div");
-
-if(!nameEl) return;
-
-if(onlinePlayers[index]){
-
-nameEl.innerHTML =
-"🌍 " + onlinePlayers[index].name;
-
-card.style.border =
-"1px solid #53f6ff";
-
-card.style.boxShadow =
-"0 0 24px rgba(83,246,255,.25)";
-
-}else{
-
-nameEl.innerHTML =
-"🤖 KI Spieler";
-
-card.style.border =
-"1px solid rgba(255,255,255,.08)";
-
-card.style.boxShadow = "none";
-
-}
-
-});
-
-});
-
-window.syncMainRoll = function(value){
-
-if(!window.currentOnlinePlayer) return;
-
-set(
-ref(cleanDb,"sharedMainRoll"),
-{
-player:window.currentOnlinePlayer,
-dice:value,
-updated:Date.now()
-}
-);
-
-};
-
-onValue(ref(cleanDb,"sharedMainRoll"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
+function renderDice(state){
 
 const dice =
 document.querySelectorAll(".die");
 
 if(!dice.length) return;
 
-dice.forEach((d,index)=>{
+state.dice.forEach((value,index)=>{
 
-if(index === 0){
+if(!dice[index]) return;
 
-d.innerHTML =
+dice[index].innerHTML =
 '<div style="font-size:72px;font-weight:900;">'
-+ data.dice +
++ value +
 '</div>';
+
+});
 
 }
 
-});
+function renderStatus(state){
 
 const status =
 document.querySelector(".status");
 
-if(status){
+if(!status) return;
+
+const active =
+state.players[state.activePlayer] || "-";
 
 status.innerHTML =
-"🎲 " +
-data.player +
-" ist am Zug";
+"🎲 Aktiver Spieler: <b>" +
+active +
+"</b>";
 
 }
 
+function renderGame(state){
+
+renderPlayers(state);
+renderDice(state);
+renderStatus(state);
+
+}
+
+onValue(gameRef,(snapshot)=>{
+
+const state = snapshot.val();
+
+if(!state) return;
+
+window.gameState = state;
+
+renderGame(state);
+
 });
+
+function attachRollButton(){
+
+const buttons =
+[...document.querySelectorAll("button")];
 
 const rollBtn =
-[...document.querySelectorAll("button")]
-.find(btn =>
-btn.innerText.includes("Würfeln")
-);
-
-if(rollBtn){
-
-rollBtn.addEventListener("click",()=>{
-
-const random =
-Math.floor(Math.random()*6)+1;
-
-syncMainRoll(random);
-
-});
-
-}
-
-</script>
-
-
-<script type="module">
-
-import {
-getDatabase,
-ref,
-set,
-onValue
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
-
-const stableDb = getDatabase();
-
-function attachStableRollSync(){
-
-const buttons = [...document.querySelectorAll("button")];
-
-const rollBtn = buttons.find(btn =>
+buttons.find(btn =>
 btn.innerText &&
 btn.innerText.includes("Würfeln")
 );
 
 if(!rollBtn) return;
 
-if(rollBtn.dataset.stableSync) return;
+if(rollBtn.dataset.mpAttached) return;
 
-rollBtn.dataset.stableSync = "1";
+rollBtn.dataset.mpAttached = "1";
 
 rollBtn.addEventListener("click",()=>{
 
-if(!window.currentOnlinePlayer) return;
+const state = window.gameState;
 
-const value = Math.floor(Math.random()*6)+1;
+if(!state) return;
 
-set(
-ref(stableDb,"stableRoll"),
-{
-player:window.currentOnlinePlayer,
-dice:value,
-updated:Date.now()
+const current =
+state.players[state.activePlayer];
+
+if(current !== window.currentOnlinePlayer){
+return;
 }
+
+const newDice =
+state.dice.map(()=>
+Math.floor(Math.random()*6)+1
 );
 
+const next =
+(state.activePlayer + 1)
+% state.players.length;
+
+set(gameRef,{
+...state,
+dice:newDice,
+activePlayer:next,
+updated:Date.now()
 });
-
-}
-
-setTimeout(attachStableRollSync,2500);
-
-onValue(ref(stableDb,"stableRoll"),(snapshot)=>{
-
-const data = snapshot.val();
-
-if(!data) return;
-
-console.log("STABLE ROLL:",data);
-
-const diceObjects =
-document.querySelectorAll(".die,.dice,.würfel");
-
-if(diceObjects.length){
-
-diceObjects.forEach((el,index)=>{
-
-if(index === 0){
-
-el.innerHTML =
-'<div style="font-size:72px;font-weight:900;color:white;">'
-+ data.dice +
-'</div>';
-
-}
 
 });
 
 }
 
-const overlay =
-document.getElementById("globalDiceOverlay");
-
-if(overlay){
-
-overlay.innerHTML =
-"🎲 " + data.player + " würfelte " + data.dice;
-
-}
-
-});
+setTimeout(attachRollButton,3000);
 
 </script>
 
