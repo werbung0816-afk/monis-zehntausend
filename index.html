@@ -3042,9 +3042,33 @@ let state = snapshot.val();
 
 if(!state){
 
+    state = {
+        players:[],
+        activePlayer:0,
+        dice:[1,1,1,1,1,1],
+        locked:[],
+        roundScore:0,
+        totalScores:{},
+        winner:null,
+        gameFinished:false,
+        updated:Date.now()
+    };
+
+}
+
+if(!state){
+
 set(gameRef,defaultState);
 return;
 
+}
+
+if(!state.players){
+    state.players = [];
+}
+
+if(!state.totalScores){
+    state.totalScores = {};
 }
 
 if(!state.players.includes(name)){
@@ -3093,6 +3117,13 @@ updated:Date.now()
 });
 
 function renderPlayers(state){
+
+if(!state) return;
+
+if(!state.players){
+    state.players = [];
+}
+
 
 const list =
 document.getElementById("mpPlayerList");
