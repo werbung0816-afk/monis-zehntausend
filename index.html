@@ -2892,5 +2892,45 @@ document.getElementById('victoryTestBtn').click();
 })();
 </script>
 
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+getDatabase,
+ref,
+set,
+onValue,
+push
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+
+apiKey: "DEINE_API_KEY",
+authDomain: "DEIN_PROJEKT.firebaseapp.com",
+databaseURL: "https://DEIN_PROJEKT-default-rtdb.europe-west1.firebasedatabase.app",
+projectId: "DEIN_PROJEKT",
+storageBucket: "DEIN_PROJEKT.appspot.com",
+messagingSenderId: "123456789",
+appId: "APP_ID"
+
+};
+
+const app = initializeApp(firebaseConfig);
+
+const db = getDatabase(app);
+
+window.firebaseDB = db;
+window.firebaseRef = ref;
+window.firebaseSet = set;
+window.firebaseOnValue = onValue;
+window.firebasePush = push;
+
+console.log("🔥 Firebase verbunden");
+
+</script>
+
 </body>
+
 </html>
