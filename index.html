@@ -2931,6 +2931,40 @@ console.log("🔥 Firebase verbunden");
 
 </script>
 
+
+<script>
+
+const playersRef = firebaseRef(firebaseDB, "players");
+
+function addPlayer(name) {
+
+const playerData = {
+name: name,
+score: 0,
+online: true,
+timestamp: Date.now()
+};
+
+firebasePush(playersRef, playerData);
+
+}
+
+function listenForPlayers() {
+
+firebaseOnValue(playersRef, (snapshot) => {
+
+const data = snapshot.val();
+
+console.log("LIVE SPIELER:", data);
+
+});
+
+}
+
+listenForPlayers();
+
+</script>
+
 </body>
 
 </html>
