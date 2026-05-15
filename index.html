@@ -3229,6 +3229,16 @@ board.innerHTML = html;
 
 function renderDice(state){
 
+if(!state) return;
+
+if(!state.locked){
+    state.locked = [];
+}
+
+if(!state.dice){
+    state.dice = [1,1,1,1,1,1];
+}
+
 const dice =
 document.querySelectorAll(".die");
 
@@ -3239,7 +3249,8 @@ state.dice.forEach((value,index)=>{
 if(!dice[index]) return;
 
 const locked =
-state.locked.includes(index);
+(state.locked || [])
+.includes(index);
 
 dice[index].innerHTML =
 '<div style="font-size:72px;font-weight:900;">'
@@ -3371,7 +3382,8 @@ const dice = [...state.dice];
 
 dice.forEach((value,index)=>{
 
-if(!state.locked.includes(index)){
+if(!(state.locked || [])
+.includes(index)){
 
 dice[index] =
 Math.floor(Math.random()*6)+1;
