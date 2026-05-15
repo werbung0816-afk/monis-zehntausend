@@ -1,238 +1,159 @@
-<!-- FIREBASE MULTIPLAYER -->
+<!DOCTYPE html>
+<html lang="de">
 
-<script type="module">
+<head>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import {
-getDatabase,
-ref,
-set,
-onValue,
-push,
-remove
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<meta charset="UTF-8">
 
-import {
-getAuth,
-signInAnonymously
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+<meta name="viewport"
+content="width=device-width, initial-scale=1.0">
 
-const firebaseConfig = {
-apiKey: "AIzaSyDkX_aEj0jUmwfMGxRAzwH8IjUPM0wx44s",
-authDomain: "monis-zehntausend.firebaseapp.com",
-databaseURL: "https://monis-zehntausend-default-rtdb.europe-west1.firebasedatabase.app",
-projectId: "monis-zehntausend",
-storageBucket: "monis-zehntausend.firebasestorage.app",
-messagingSenderId: "399927026314",
-appId: "1:399927026314:web:5fab639228c5b42efd0373"
-};
+<title>Moni's Zehntausend</title>
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-const auth = getAuth(app);
+<link
+rel="stylesheet"
+href="style.css">
 
-let myUid = null;
-let roomId = "global-room";
+<link
+href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap"
+rel="stylesheet">
 
-await signInAnonymously(auth);
+</head>
 
-myUid = auth.currentUser.uid;
+<body>
 
-window.myUid = myUid;
+<div id="app">
 
-if(!document.getElementById("onlinePanel")){
+<!-- HEADER -->
 
-const panel = document.createElement("div");
+<header class="topbar">
 
-panel.id = "onlinePanel";
+<div class="logoWrap">
 
-panel.style.cssText = `
-position:fixed;
-top:20px;
-right:20px;
-width:320px;
-background:rgba(10,10,30,.92);
-border:1px solid rgba(255,255,255,.12);
-border-radius:24px;
-padding:18px;
-z-index:99999;
-backdrop-filter:blur(14px);
-box-shadow:0 0 40px rgba(0,0,0,.45);
-`;
+<img
+src="assets/moni-title.png"
+class="titleArt">
 
-panel.innerHTML = `
-<div style="font-size:26px;font-weight:900;margin-bottom:10px;">
-🌍 Online Lobby
+<h1>
+Moni's Zehntausend
+</h1>
+
 </div>
 
-<div id="onlineUsers"></div>
+<div class="onlineBadge">
+🌍 Multiplayer Online
+</div>
 
-<textarea id="chatInput"
-placeholder="Nachricht..."
-style="
-width:100%;
-height:70px;
-margin-top:14px;
-border:none;
-border-radius:14px;
-padding:12px;
-background:#16162b;
-color:white;
-resize:none;
-font-size:16px;
-"></textarea>
+</header>
 
-<button id="sendChatBtn"
-style="
-width:100%;
-margin-top:10px;
-padding:14px;
-border:none;
-border-radius:16px;
-font-weight:800;
-font-size:18px;
-cursor:pointer;
-background:linear-gradient(90deg,#8b5cf6,#ec4899);
-color:white;
-">
+
+<!-- LOBBY -->
+
+<section id="lobby">
+
+<div class="panel">
+
+<h2>Spieler</h2>
+
+<div id="playerList"></div>
+
+</div>
+
+
+<div class="panel">
+
+<h2>Chat</h2>
+
+<div id="chatMessages"></div>
+
+<textarea
+id="chatInput"
+placeholder="Nachricht schreiben..."></textarea>
+
+<button id="sendChatBtn">
 Senden
 </button>
 
-<div id="chatMessages"
-style="
-margin-top:14px;
-max-height:260px;
-overflow:auto;
-display:flex;
-flex-direction:column;
-gap:8px;
-"></div>
+</div>
+
+
+<div class="panel">
+
+<h2>Sprachchat</h2>
 
 <a
+class="jitsiBtn"
 href="https://meet.jit.si/monis-zehntausend"
-target="_blank"
-style="
-display:block;
-margin-top:16px;
-text-align:center;
-padding:14px;
-border-radius:16px;
-background:linear-gradient(90deg,#53f6ff,#5677ff);
-color:white;
-font-weight:900;
-text-decoration:none;
-">
-🎤 Jitsi Sprachchat
+target="_blank">
+
+🎤 Jitsi öffnen
+
 </a>
-`;
 
-document.body.appendChild(panel);
-
-}
-
-const usersRef = ref(db, "rooms/" + roomId + "/users/" + myUid);
-
-set(usersRef,{
-name: localStorage.getItem("moniPlayerName") || "Gast",
-online:true,
-timestamp:Date.now()
-});
-
-window.addEventListener("beforeunload",()=>{
-remove(usersRef);
-});
-
-onValue(
-ref(db,"rooms/" + roomId + "/users"),
-(snapshot)=>{
-
-const data = snapshot.val() || {};
-
-const onlineUsers = document.getElementById("onlineUsers");
-
-onlineUsers.innerHTML = "";
-
-Object.values(data).forEach(user=>{
-
-const div = document.createElement("div");
-
-div.style.cssText = `
-padding:10px;
-border-radius:14px;
-background:rgba(255,255,255,.05);
-margin-bottom:8px;
-`;
-
-div.innerHTML = `
-👤 ${user.name}
-`;
-
-onlineUsers.appendChild(div);
-
-});
-
-}
-);
-
-document.getElementById("sendChatBtn").onclick = ()=>{
-
-const input = document.getElementById("chatInput");
-
-if(!input.value.trim()) return;
-
-push(
-ref(db,"rooms/" + roomId + "/chat"),
-{
-name: localStorage.getItem("moniPlayerName") || "Gast",
-message: input.value,
-timestamp:Date.now()
-}
-);
-
-input.value = "";
-
-};
-
-onValue(
-ref(db,"rooms/" + roomId + "/chat"),
-(snapshot)=>{
-
-const data = snapshot.val() || {};
-
-const chat = document.getElementById("chatMessages");
-
-chat.innerHTML = "";
-
-Object.values(data)
-.sort((a,b)=>a.timestamp-b.timestamp)
-.slice(-30)
-.forEach(msg=>{
-
-const div = document.createElement("div");
-
-div.style.cssText = `
-padding:10px;
-border-radius:14px;
-background:rgba(255,255,255,.06);
-`;
-
-div.innerHTML = `
-<div style="font-weight:800;color:#53f6ff;">
-${msg.name}
 </div>
 
-<div style="margin-top:4px;">
-${msg.message}
+</section>
+
+
+<!-- GAME -->
+
+<main id="gameArea">
+
+<div class="panel gamePanel">
+
+<div id="roundCounter">
+1 / 10
 </div>
-`;
 
-chat.appendChild(div);
+<div id="diceArea"></div>
 
-});
+<div class="actionButtons">
 
-chat.scrollTop = chat.scrollHeight;
+<button id="rollBtn">
+Würfeln
+</button>
 
-}
-);
+<button id="bankBtn">
+Sichern
+</button>
 
-</script>
+<button id="endBtn">
+Zug beenden
+</button>
+
+</div>
+
+</div>
+
+</main>
+
+
+<!-- WINNER -->
+
+<div id="winnerOverlay">
+
+<div class="winnerContent">
+
+<h2>Spiel beendet</h2>
+
+<div id="winnerList"></div>
+
+<button id="restartBtn">
+Neue Runde
+</button>
+
+</div>
+
+</div>
+
+</div>
+
+
+<script type="module"
+src="firebase.js"></script>
+
+<script type="module"
+src="app.js"></script>
+
+</body>
+</html>
