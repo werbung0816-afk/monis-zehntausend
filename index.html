@@ -3140,7 +3140,108 @@ Kein aktiver Zug
 
 </div>
 
+
+<script type="module">
+
+import {
+ref,
+set,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+window.globalGameRoom = "global-room";
+
+window.syncTurnSystem = function(playerName){
+
+const room = window.globalGameRoom;
+
+const turnRef = ref(db, "rooms/" + room + "/turn");
+const diceRef = ref(db, "rooms/" + room + "/dice");
+
+onValue(turnRef, (snapshot)=>{
+
+const currentTurn = snapshot.val();
+
+const turnElement = document.getElementById("currentTurn");
+
+if(turnElement){
+
+turnElement.innerText = "🎲 Am Zug: " + currentTurn;
+
+}
+
+const rollBtn = document.querySelector("button");
+
+if(rollBtn){
+
+if(currentTurn !== playerName){
+
+rollBtn.style.opacity = ".4";
+rollBtn.style.pointerEvents = "none";
+
+}else{
+
+rollBtn.style.opacity = "1";
+rollBtn.style.pointerEvents = "auto";
+
+}
+
+}
+
+});
+
+window.multiplayerRoll = function(){
+
+const currentDice = Math.floor(Math.random()*6)+1;
+
+set(diceRef,{
+value: currentDice,
+player: playerName,
+timestamp: Date.now()
+});
+
+};
+
+onValue(diceRef, (snapshot)=>{
+
+const data = snapshot.val();
+
+if(!data) return;
+
+const scoreBox = document.querySelectorAll("div");
+
+console.log("LIVE WÜRFEL:", data);
+
+});
+
+};
+
+const oldJoin = window.joinRoom;
+
+window.joinRoom = function(){
+
+oldJoin();
+
+const playerInput = document.getElementById("playerNameJoin");
+
+if(playerInput){
+
+const player = playerInput.value.trim();
+
+if(player){
+
+syncTurnSystem(player);
+
+}
+
+}
+
+};
+
+</script>
+
 </body>
+
 
 
 
