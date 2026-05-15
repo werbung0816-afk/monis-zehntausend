@@ -3063,6 +3063,7 @@ const name = input.value.trim();
 
 if(name === "") return;
 
+joinRoom();
 push(playersRef, {
 name:name,
 score:0,
@@ -3125,35 +3126,11 @@ backdrop-filter:blur(10px);
 🎮 Raum
 </div>
 
-<input id="roomCodeInput"
-placeholder="Raumcode"
-style="
-width:100%;
-padding:12px;
-border-radius:12px;
-border:none;
-margin-bottom:10px;
-font-size:16px;
-">
 
-<button onclick="joinRoom()"
-style="
-width:100%;
-padding:12px;
-border:none;
-border-radius:12px;
-font-size:16px;
-font-weight:800;
-cursor:pointer;
-background:linear-gradient(90deg,#8b5cf6,#ec4899);
-color:white;
-">
-Raum beitreten
-</button>
 
 <div id="currentRoom"
 style="margin-top:14px;font-size:14px;opacity:.85;">
-Kein Raum verbunden
+🌍 Globale Lobby
 </div>
 
 <div id="currentTurn"
