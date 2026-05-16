@@ -4114,5 +4114,157 @@ window.startSharedGame = function(room){
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('STAGE8 ROOT APP OVERRIDE ACTIVE');
+
+window.__MULTIPLAYER_ROOT__ = true;
+
+function hideLegacyRootUI(){
+
+ const hideTexts = [
+  '2 Spieler',
+  '3 Spieler',
+  '4 Spieler',
+  'Spielversion',
+  'Einzelspieler',
+  'Schnelle 10'
+ ];
+
+ document.querySelectorAll('div,section,article')
+ .forEach(el=>{
+
+   const txt =
+   (el.innerText || '').trim();
+
+   const matched =
+   hideTexts.some(t=>txt.includes(t));
+
+   if(matched){
+
+     if(
+      !el.closest('#mpLobbyOverlay')
+     ){
+       el.style.display='none';
+     }
+
+   }
+
+ });
+
+}
+
+function forceLobbyAsRoot(){
+
+ const lobby =
+ document.getElementById('mpLobbyOverlay');
+
+ if(lobby){
+
+   lobby.style.display='flex';
+   lobby.style.zIndex='999999';
+
+ }
+
+}
+
+function blockLegacyGameBoot(){
+
+ const blocked = [
+  'startGame',
+  'startLocalGame',
+  'showStartScreen',
+  'showPlayerSelection',
+  'showModeSelection',
+  'renderStartMenu',
+  'bootGame',
+  'initGame'
+ ];
+
+ blocked.forEach(name=>{
+
+   if(typeof window[name] === 'function'){
+
+     const original = window[name];
+
+     window[name] = function(){
+
+       if(window.__MULTIPLAYER_ROOT__){
+
+         console.warn(
+          'Blocked legacy root call:',
+          name
+         );
+
+         return;
+
+       }
+
+       return original.apply(this, arguments);
+
+     };
+
+   }
+
+ });
+
+}
+
+function cleanupOldRooms(){
+
+ if(!window.firebase) return;
+
+ const db = firebase.database();
+
+ db.ref('z10_rooms')
+ .once('value')
+ .then(snap=>{
+
+   const rooms = snap.val() || {};
+   const now = Date.now();
+
+   Object.entries(rooms)
+   .forEach(([id,room])=>{
+
+     const stale =
+     now - (room.lastActivity || 0)
+     > 1000 * 60 * 60;
+
+     if(stale){
+
+       db.ref('z10_rooms/'+id)
+       .remove();
+
+     }
+
+   });
+
+ });
+
+}
+
+window.addEventListener('load',()=>{
+
+ forceLobbyAsRoot();
+
+ hideLegacyRootUI();
+
+ blockLegacyGameBoot();
+
+ cleanupOldRooms();
+
+ setInterval(()=>{
+
+   hideLegacyRootUI();
+
+ },1500);
+
+});
+
+})();
+</script>
+
 </body>
 </html>
