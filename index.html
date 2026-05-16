@@ -4765,28 +4765,72 @@ async function startSharedGameNow(){
  await roomRef().once('value');
 
  const room = roomSnap.val();
+ const roomPlayers = room.players || [];
+
+ // ── Lokale players-Engine aus Firebase-Raum befüllen ──
+ // So kennt die Premium-Engine die richtigen Spieler
+ if(typeof players !== 'undefined'){
+   players = roomPlayers.map((p,i)=>({
+     name: p.name || ('Spieler '+(i+1)),
+     score: 0,
+     isAI: !!p.isAI,
+     id: p.id || ('p_'+i)
+   }));
+   // Fehlende Slots mit KI auffüllen
+   const maxP = room.maxPlayers || 4;
+   const aiPool = ['Ingo','Dani','Holly','Julia','Joschi'].filter(
+     n => !players.some(p=>p.name.startsWith(n))
+   );
+   let ai=0;
+   while(players.length < Math.min(maxP, room.fillWithAI ? maxP : players.length)){
+     players.push({name:(aiPool[ai++]||'KI'+ai)+' (KI)',score:0,isAI:true,id:'ai_'+ai});
+   }
+   if(typeof currentPlayer !== 'undefined') currentPlayer = 0;
+   if(typeof roundPoints !== 'undefined') roundPoints = 0;
+   if(typeof dice !== 'undefined') dice = [];
+   if(typeof selected !== 'undefined') selected = [];
+   if(typeof mustSecure !== 'undefined') mustSecure = false;
+   if(typeof hasRolledThisTurn !== 'undefined') hasRolledThisTurn = false;
+ }
 
  const state = {
-   roomId:ROOM_ID,
-   phase:'playing',
-   activePlayerIndex:0,
-   activePlayerId:room.players?.[0]?.id || null,
-   players:room.players || [],
-   dice:[1,1,1,1,1,1],
-   totalScores:{},
-   updatedAt:Date.now()
+   roomId: ROOM_ID,
+   phase: 'playing',
+   currentPlayer: 0,
+   activePlayerIndex: 0,
+   activePlayerId: roomPlayers[0]?.id || (players[0]?.id) || null,
+   players: players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI,id:p.id})),
+   dice: [],
+   selected: [],
+   roundPoints: 0,
+   mustSecure: false,
+   hasRolledThisTurn: false,
+   totalScores: {},
+   updatedAt: Date.now()
  };
 
- state.players.forEach(p=>{
-   state.totalScores[p.id] = 0;
- });
+ state.players.forEach(p=>{ state.totalScores[p.id||p.name] = 0; });
+
+ // Bridge für Host aktivieren BEVOR Firebase-Write
+ if(window._isBridgeActive !== undefined) window._isBridgeActive = true;
+ window._bridgeActive = true;
 
  await gameRef().set(state);
+ await roomRef().update({phase:'playing', lastActivity:Date.now()});
 
- await roomRef().update({
-   phase:'playing',
-   lastActivity:Date.now()
- });
+ // Bridge initialisieren → pusht State
+ setTimeout(()=>{
+   if(window.initBridgeForHost) window.initBridgeForHost();
+   // Setup-Screen verstecken, Spiel anzeigen
+   const setup = document.getElementById('setupScreen');
+   if(setup) setup.style.display='none';
+   const lobby = document.getElementById('mpLobbyOverlay');
+   if(lobby) lobby.style.display='none';
+   if(typeof renderPlayers==='function') renderPlayers();
+   if(typeof renderDice==='function') renderDice();
+   if(typeof renderStats==='function') renderStats();
+   if(typeof setStatus==='function') setStatus('🎲 Du bist dran — würfle!');
+ }, 300);
 
 }
 
@@ -4994,7 +5038,7 @@ function getGameRef(){
 
 /* ── 1. STATE → FIREBASE (nach jeder lokalen Aktion) ── */
 window.pushStateToFirebase = function(){
-  if(!_isBridgeActive) return;
+  if(!window._bridgeActive) return;
   const ref = getGameRef();
   if(!ref) return;
 
@@ -5023,7 +5067,14 @@ window.pushStateToFirebase = function(){
 /* ── 2. FIREBASE → LOKALE VARIABLEN (Hydration) ── */
 window.hydratePremiumState = function(state){
   if(!state) return;
-  if(!_isBridgeActive) return;
+
+  // Veraltete oder gameover States ignorieren
+  if(state.phase === 'gameover') return;
+  if(state.phase !== 'playing') return;
+  if(!state.players || state.players.length === 0) return;
+
+  // Bridge nur aktiv wenn wir uns im Multiplayer-Modus befinden
+  if(!window._bridgeActive) return;
 
   // Veraltete Updates ignorieren
   if(state.updatedAt && state.updatedAt <= _lastTs) return;
@@ -5088,7 +5139,7 @@ window.hydratePremiumState = function(state){
 
 /* ── 3. SPIELER IDs INITIALISIEREN ── */
 window.initBridgeForHost = function(){
-  _isBridgeActive = true;
+  window._bridgeActive = true;
   // IDs für alle Spieler setzen
   players.forEach((p,i)=>{
     if(!p.id){
@@ -5114,8 +5165,11 @@ window.addEventListener('load', ()=>{
   ref.on('value', snap=>{
     const state = snap.val();
     if(!state || state.phase !== 'playing') return;
+    if(!state.players || state.players.length === 0) return;
 
-    // Nur hydratisieren wenn nicht der Host (der schreibt selbst)
+    // Bridge für Gast aktivieren sobald Spiel läuft
+    window._bridgeActive = true;
+
     const myId = window.currentUserId;
     const isHost = state.players?.[0]?.id === myId;
 
