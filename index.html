@@ -3620,5 +3620,242 @@ window.createRoom = function(){
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('STAGE5 LOBBY OVERRIDE ACTIVE');
+
+const ROOM_NAMES = [
+ 'Düsseldorf',
+ 'Bensheim',
+ 'Alsbach',
+ 'Griesheim',
+ 'Zwingenberg',
+ 'Mainz'
+];
+
+function getRoomName(existingRooms){
+
+ const used =
+ Object.values(existingRooms || {})
+ .map(r=>r.name);
+
+ const free =
+ ROOM_NAMES.find(n=>!used.includes(n));
+
+ return free || ('Lobby '+Math.floor(Math.random()*999));
+
+}
+
+window.createRoom = async function(){
+
+ const db = firebase.database();
+
+ const snap =
+ await db.ref('z10_rooms').once('value');
+
+ const rooms = snap.val() || {};
+
+ const roomId =
+ 'room_' + Math.random().toString(36).slice(2,8);
+
+ const room = {
+   id:roomId,
+   name:getRoomName(rooms),
+   hostId:window.currentUserId,
+   createdAt:Date.now(),
+   lastActivity:Date.now(),
+   maxPlayers:parseInt(
+     document.getElementById('mpMaxPlayers').value
+   ),
+   allowAI:
+     document.getElementById('mpAllowAI').checked,
+   phase:'waiting',
+   players:[{
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
+   }]
+ };
+
+ await db.ref('z10_rooms/'+roomId).set(room);
+
+ window.currentRoomId = roomId;
+
+ watchRoom(roomId);
+
+};
+
+window.watchRoom = function(roomId){
+
+ firebase.database()
+ .ref('z10_rooms/'+roomId)
+ .on('value',(snap)=>{
+
+   const room = snap.val();
+
+   if(!room) return;
+
+   room.lastActivity = Date.now();
+
+   const old =
+   document.getElementById('hostStartBtn');
+
+   if(old) old.remove();
+
+   const isHost =
+   room.hostId === window.currentUserId;
+
+   if(isHost){
+
+     const top =
+     document.querySelector(
+      '#mpLobbyOverlay h1'
+     )?.parentNode;
+
+     if(top){
+
+       const btn =
+       document.createElement('button');
+
+       btn.id = 'hostStartBtn';
+
+       btn.innerText = 'Spiel starten';
+
+       btn.style.cssText = `
+       margin-left:20px;
+       padding:12px 18px;
+       border:none;
+       border-radius:12px;
+       background:#16a34a;
+       color:white;
+       font-weight:bold;
+       cursor:pointer;
+       `;
+
+       btn.onclick = ()=>{
+
+         firebase.database()
+         .ref('z10_rooms/'+roomId)
+         .update({
+           phase:'playing',
+           lastActivity:Date.now()
+         });
+
+       };
+
+       top.appendChild(btn);
+
+     }
+
+   }
+
+   if(room.phase === 'playing'){
+
+     document.getElementById(
+      'mpLobbyOverlay'
+     ).style.display='none';
+
+     alert(
+      'Gemeinsames Spiel startet jetzt'
+     );
+
+   }
+
+ });
+
+};
+
+window.joinRoom = async function(roomId){
+
+ const db = firebase.database();
+
+ const ref =
+ db.ref('z10_rooms/'+roomId);
+
+ const snap =
+ await ref.once('value');
+
+ const room = snap.val();
+
+ if(!room) return;
+
+ room.players = room.players || [];
+
+ const exists =
+ room.players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ if(!exists){
+
+   room.players.push({
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
+   });
+
+ }
+
+ room.lastActivity = Date.now();
+
+ await ref.set(room);
+
+ window.currentRoomId = roomId;
+
+ watchRoom(roomId);
+
+};
+
+async function cleanupRooms(){
+
+ const db = firebase.database();
+
+ const snap =
+ await db.ref('z10_rooms').once('value');
+
+ const rooms = snap.val() || {};
+
+ const now = Date.now();
+
+ Object.entries(rooms).forEach(([id,room])=>{
+
+   const empty =
+   !room.players || room.players.length===0;
+
+   const stale =
+   now - (room.lastActivity || 0)
+   > 1000 * 60 * 30;
+
+   if(empty || stale){
+
+     db.ref('z10_rooms/'+id).remove();
+
+   }
+
+ });
+
+}
+
+window.addEventListener('load',()=>{
+
+ cleanupRooms();
+
+ document
+ .getElementById('createRoomBtn')
+ ?.addEventListener('click',(e)=>{
+
+   e.stopImmediatePropagation();
+
+   createRoom();
+
+ });
+
+});
+
+})();
+</script>
+
 </body>
 </html>
