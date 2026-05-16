@@ -3852,6 +3852,9 @@ window.watchRoom = function(roomId){
 
 window.joinRoom = async function(roomId){
 
+ // Immer zuerst Namen aus Eingabefeld übernehmen
+ if(typeof applyLobbyName === 'function') applyLobbyName();
+
  const db = firebase.database();
 
  const ref =
@@ -4641,6 +4644,9 @@ async function ensureMainRoom(){
 
 async function joinMainRoom(){
 
+ // Immer zuerst Namen aus Eingabefeld übernehmen
+ if(typeof applyLobbyName === 'function') applyLobbyName();
+
  const snap = await roomRef().once('value');
 
  const room = snap.val();
@@ -4660,6 +4666,9 @@ async function joinMainRoom(){
      type:'human'
    });
 
+ } else {
+   // Name aktualisieren falls geändert
+   exists.name = window.currentPlayerName;
  }
 
  room.lastActivity = Date.now();
