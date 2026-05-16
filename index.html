@@ -2939,5 +2939,266 @@ window.addEventListener('load',()=>{
 });
 </script>
 
+
+<!-- MULTIPLAYER LOBBY -->
+<div id="mpLobbyOverlay" style="
+position:fixed;
+inset:0;
+background:rgba(5,5,15,.96);
+z-index:99999;
+display:flex;
+align-items:center;
+justify-content:center;
+font-family:Arial;
+">
+<div style="
+width:min(1100px,95vw);
+max-height:92vh;
+overflow:auto;
+background:#1b1630;
+border-radius:28px;
+padding:28px;
+color:white;
+border:2px solid rgba(255,255,255,.08);
+">
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+<h1 style="margin:0">🎲 Zehntausend Multiplayer</h1>
+
+<button id="closeMpLobby" style="
+padding:10px 16px;
+border:none;
+border-radius:12px;
+background:#7c3aed;
+color:white;
+font-weight:bold;
+cursor:pointer;
+">
+Schließen
+</button>
+</div>
+
+<div style="
+display:grid;
+grid-template-columns:320px 1fr;
+gap:20px;
+">
+
+<div style="
+background:#241d40;
+padding:20px;
+border-radius:20px;
+">
+
+<h2>Spiel erstellen</h2>
+
+<label>Max Spieler</label>
+
+<select id="mpMaxPlayers" style="
+width:100%;
+padding:12px;
+margin:8px 0 16px;
+border-radius:12px;
+background:#130f23;
+color:white;
+border:none;
+">
+<option>2</option>
+<option>3</option>
+<option>4</option>
+<option>5</option>
+<option>6</option>
+<option>7</option>
+<option>8</option>
+<option>9</option>
+<option selected>10</option>
+</select>
+
+<label style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
+<input type="checkbox" id="mpAllowAI" checked>
+<span>KI auffüllen</span>
+</label>
+
+<button id="createRoomBtn" style="
+width:100%;
+padding:14px;
+border:none;
+border-radius:14px;
+background:#8b5cf6;
+color:white;
+font-weight:bold;
+cursor:pointer;
+">
+Raum erstellen
+</button>
+
+</div>
+
+<div style="
+background:#241d40;
+padding:20px;
+border-radius:20px;
+">
+
+<div style="
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:14px;
+">
+<h2 style="margin:0">Offene Räume</h2>
+
+<button id="refreshRoomsBtn" style="
+padding:10px 14px;
+border:none;
+border-radius:12px;
+background:#8b5cf6;
+color:white;
+font-weight:bold;
+cursor:pointer;
+">
+Aktualisieren
+</button>
+</div>
+
+<div id="publicRoomList"></div>
+
+</div>
+
+</div>
+
+</div>
+</div>
+
+<script>
+(function(){
+
+console.log('MULTIPLAYER LOBBY STAGE2 ACTIVE');
+
+window.mpRooms = [];
+
+function renderRooms(){
+
+ const container =
+ document.getElementById('publicRoomList');
+
+ if(!container) return;
+
+ container.innerHTML = '';
+
+ if(window.mpRooms.length === 0){
+
+   container.innerHTML = `
+   <div style="
+   padding:20px;
+   border-radius:16px;
+   background:#171129;
+   ">
+   Keine offenen Räume
+   </div>
+   `;
+
+   return;
+ }
+
+ window.mpRooms.forEach(room=>{
+
+   const div = document.createElement('div');
+
+   div.style.cssText = `
+   background:#171129;
+   border-radius:16px;
+   padding:16px;
+   margin-bottom:12px;
+   display:flex;
+   justify-content:space-between;
+   align-items:center;
+   `;
+
+   div.innerHTML = `
+   <div>
+     <div style="font-size:20px;font-weight:bold">
+       ${room.name}
+     </div>
+
+     <div style="opacity:.7;margin-top:6px">
+       ${room.players}/${room.maxPlayers} Spieler
+     </div>
+   </div>
+
+   <button
+     style="
+     padding:12px 16px;
+     border:none;
+     border-radius:12px;
+     background:#8b5cf6;
+     color:white;
+     font-weight:bold;
+     cursor:pointer;
+     "
+     onclick="alert('Join-System folgt im nächsten Merge-Schritt')"
+   >
+   Beitreten
+   </button>
+   `;
+
+   container.appendChild(div);
+
+ });
+
+}
+
+window.addEventListener('load',()=>{
+
+ const createBtn =
+ document.getElementById('createRoomBtn');
+
+ const refreshBtn =
+ document.getElementById('refreshRoomsBtn');
+
+ const closeBtn =
+ document.getElementById('closeMpLobby');
+
+ createBtn?.addEventListener('click',()=>{
+
+   const maxPlayers =
+   parseInt(
+     document.getElementById('mpMaxPlayers').value
+   );
+
+   const allowAI =
+   document.getElementById('mpAllowAI').checked;
+
+   window.mpRooms.unshift({
+     name:'Zehntausend Lobby',
+     players:1,
+     maxPlayers,
+     allowAI
+   });
+
+   renderRooms();
+
+ });
+
+ refreshBtn?.addEventListener('click',()=>{
+
+   renderRooms();
+
+ });
+
+ closeBtn?.addEventListener('click',()=>{
+
+   document.getElementById('mpLobbyOverlay')
+   .style.display = 'none';
+
+ });
+
+ renderRooms();
+
+});
+
+})();
+</script>
+
 </body>
 </html>
