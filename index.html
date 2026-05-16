@@ -3379,6 +3379,7 @@ function renderRooms(rooms){
      </div>
    </div>
 
+   <div style="display:flex;gap:8px;flex-wrap:wrap">
    <button
      data-room="${roomId}"
      class="joinRoomBtn"
@@ -3394,6 +3395,24 @@ function renderRooms(rooms){
    >
    Beitreten
    </button>
+
+   <button
+     id="startMainGameBtn"
+     data-room="${roomId}"
+     style="
+     padding:12px 16px;
+     border:none;
+     border-radius:12px;
+     background:linear-gradient(135deg,#16a34a,#15803d);
+     color:white;
+     font-weight:bold;
+     cursor:pointer;
+     box-shadow:0 4px 12px rgba(22,163,74,.3);
+     "
+   >
+   🎮 Spiel starten
+   </button>
+   </div>
    `;
 
    container.appendChild(div);
