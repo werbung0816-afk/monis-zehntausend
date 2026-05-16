@@ -3369,49 +3369,39 @@ function renderRooms(rooms){
    `;
 
    div.innerHTML = `
-   <div>
+   <div style="flex:1">
      <div style="font-size:20px;font-weight:bold">
-       ${room.name || 'Zehntausend Lobby'}
+       ${room.name || 'Düsseldorf'}
      </div>
-
-     <div style="opacity:.7;margin-top:6px">
+     <div style="opacity:.7;margin-top:4px;font-size:14px">
        ${(room.players||[]).length}/${room.maxPlayers} Spieler
      </div>
+     ${(room.players||[]).length > 0 ? `
+     <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+       ${(room.players||[]).map(p=>`
+         <span style="background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.3);
+           border-radius:8px;padding:3px 10px;font-size:12px;color:rgba(255,255,255,.8)">
+           ${p.name||'?'}
+         </span>`).join('')}
+     </div>` : ''}
    </div>
 
-   <div style="display:flex;gap:8px;flex-wrap:wrap">
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0">
    <button
      data-room="${roomId}"
      class="joinRoomBtn"
-     style="
-     padding:12px 16px;
-     border:none;
-     border-radius:12px;
-     background:#8b5cf6;
-     color:white;
-     font-weight:bold;
-     cursor:pointer;
-     "
-   >
-   Beitreten
-   </button>
+     style="padding:12px 16px;border:none;border-radius:12px;
+     background:#8b5cf6;color:white;font-weight:bold;cursor:pointer"
+   >Beitreten</button>
 
    <button
      id="startMainGameBtn"
-     data-room="${roomId}"
-     style="
-     padding:12px 16px;
-     border:none;
-     border-radius:12px;
+     onclick="startSharedGameNow()"
+     style="padding:12px 16px;border:none;border-radius:12px;
      background:linear-gradient(135deg,#16a34a,#15803d);
-     color:white;
-     font-weight:bold;
-     cursor:pointer;
-     box-shadow:0 4px 12px rgba(22,163,74,.3);
-     "
-   >
-   🎮 Spiel starten
-   </button>
+     color:white;font-weight:bold;cursor:pointer;
+     box-shadow:0 4px 12px rgba(22,163,74,.3)"
+   >🎮 Spiel starten</button>
    </div>
    `;
 
