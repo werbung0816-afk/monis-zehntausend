@@ -1,6 +1,44 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+<script>
+/* SOFORT-CLEANUP: Löscht alten Spielstand via REST API BEVOR Firebase-Listener feuern */
+(function(){
+  const DB = 'https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app';
+  const GAME_PATH = DB + '/z10_games/duesseldorf.json';
+  const ROOM_PATH = DB + '/z10_rooms/duesseldorf.json';
+
+  // Prüfe ob Reset benötigt wird (localStorage-Flag von forceReset)
+  const needsReset = localStorage.getItem('z10_force_reset') === '1';
+
+  // Spielstand per REST lesen
+  fetch(GAME_PATH)
+    .then(r=>r.json())
+    .then(data=>{
+      if(data && (data.phase==='playing'||data.phase==='gameover')||needsReset){
+        // Alten State sofort löschen
+        console.log('[CLEANUP] Alter Spielstand gefunden, lösche...');
+        localStorage.removeItem('z10_force_reset');
+        return Promise.all([
+          fetch(GAME_PATH, {method:'DELETE'}),
+          fetch(ROOM_PATH)
+            .then(r=>r.json())
+            .then(room=>{
+              if(room&&room.phase==='playing'){
+                return fetch(ROOM_PATH, {
+                  method:'PATCH',
+                  headers:{'Content-Type':'application/json'},
+                  body:JSON.stringify({phase:'waiting'})
+                });
+              }
+            })
+        ]);
+      }
+    })
+    .catch(e=>console.warn('[CLEANUP] REST error:', e));
+})();
+</script>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Moni's Zehntausend</title>
@@ -2140,13 +2178,12 @@ cleanup();
 
 // Notfall-Reset: auch via Konsole aufrufbar
 window.forceReset = function(){
-  try{
-    const db = firebase.database();
-    Promise.all([
-      db.ref('z10_games').remove(),
-      db.ref('z10_rooms').remove()
-    ]).finally(()=>location.reload());
-  } catch(e){ location.reload(); }
+  localStorage.setItem('z10_force_reset','1');
+  var _dbUrl = 'https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app';
+  Promise.all([
+    fetch(_dbUrl+'/z10_games/duesseldorf.json',{method:'DELETE'}),
+    fetch(_dbUrl+'/z10_rooms/duesseldorf.json',{method:'DELETE'})
+  ]).finally(function(){location.reload();});
 };
 
 function launchConfetti(){
