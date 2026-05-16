@@ -4678,16 +4678,6 @@ function renderSingleRoom(room){
  players[0]?.id === window.currentUserId;
 
  list.innerHTML = `
- <div style="background:#241d40;border-radius:16px;padding:16px;margin-bottom:12px;">
-   <label style="font-size:13px;font-weight:600;color:rgba(255,255,255,.5);display:block;margin-bottom:6px;letter-spacing:.5px">DEIN NAME *</label>
-   <input id="mpPlayerNameInput" type="text" maxlength="16" placeholder="Name eingeben…" autocomplete="off"
-     style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid rgba(139,92,246,.4);background:#130f23;color:#fff;font-family:inherit;font-size:15px;outline:none;box-sizing:border-box"
-     onfocus="this.style.borderColor='rgba(139,92,246,.9)'" onblur="this.style.borderColor='rgba(139,92,246,.4)'"
-     value="${window.currentPlayerName||localStorage.getItem('z10_name')||''}"
-   >
-   <div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:4px">⚠ Bitte gib einen Namen ein</div>
- </div>
-
  <div
  style="
  background:#171129;
@@ -4768,10 +4758,26 @@ function renderSingleRoom(room){
           cursor:pointer;
           "
          >
-         Spiel starten
+         🎮 Spiel starten
          </button>
          `
-         : ''
+         : `
+         <button
+          id="startMainGameBtn"
+          onclick="alert('Nur der Host kann das Spiel starten.')"
+          style="
+          padding:12px 16px;
+          border:none;
+          border-radius:12px;
+          background:#374151;
+          color:rgba(255,255,255,.4);
+          font-weight:bold;
+          cursor:not-allowed;
+          "
+         >
+         🎮 Spiel starten (nur Host)
+         </button>
+         `
        }
 
      </div>
