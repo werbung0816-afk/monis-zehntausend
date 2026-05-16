@@ -4743,42 +4743,22 @@ function renderSingleRoom(room){
          `
        }
 
-       ${
-         isHost
-         ? `
-         <button
-          id="startMainGameBtn"
-          style="
-          padding:12px 16px;
-          border:none;
-          border-radius:12px;
-          background:#16a34a;
-          color:white;
-          font-weight:bold;
-          cursor:pointer;
-          "
-         >
-         🎮 Spiel starten
-         </button>
-         `
-         : `
-         <button
-          id="startMainGameBtn"
-          onclick="alert('Nur der Host kann das Spiel starten.')"
-          style="
-          padding:12px 16px;
-          border:none;
-          border-radius:12px;
-          background:#374151;
-          color:rgba(255,255,255,.4);
-          font-weight:bold;
-          cursor:not-allowed;
-          "
-         >
-         🎮 Spiel starten (nur Host)
-         </button>
-         `
-       }
+       <button
+         id="startMainGameBtn"
+         style="
+         padding:12px 20px;
+         border:none;
+         border-radius:12px;
+         background:linear-gradient(135deg,#16a34a,#15803d);
+         color:white;
+         font-weight:bold;
+         font-size:15px;
+         cursor:pointer;
+         box-shadow:0 4px 15px rgba(22,163,74,.3);
+         "
+        >
+        🎮 Spiel starten
+        </button>
 
      </div>
 
@@ -4821,6 +4801,14 @@ function renderSingleRoom(room){
 async function startSharedGameNow(){
 
  if(!applyLobbyName || !applyLobbyName()) return;
+
+ // Wenn noch nicht beigetreten, erst beitreten
+ const preSnap = await roomRef().once('value');
+ const preRoom = preSnap.val();
+ const myId = window.currentUserId;
+ if(preRoom && !(preRoom.players||[]).some(p=>p&&p.id===myId)){
+   await joinMainRoom().catch(()=>{});
+ }
 
  const roomSnap =
  await roomRef().once('value');
