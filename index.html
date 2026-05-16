@@ -3011,47 +3011,12 @@ padding:20px;
 border-radius:20px;
 ">
 
-<h2>Spiel erstellen</h2>
+<h2>Düsseldorf</h2>
+<p style="color:rgba(255,255,255,.6);margin:8px 0 16px;font-size:14px">
+  Der einzige aktive Raum.<br>Tritt bei oder starte das Spiel.
+</p>
 
-<label>Max Spieler</label>
-
-<select id="mpMaxPlayers" style="
-width:100%;
-padding:12px;
-margin:8px 0 16px;
-border-radius:12px;
-background:#130f23;
-color:white;
-border:none;
-">
-<option>2</option>
-<option>3</option>
-<option>4</option>
-<option>5</option>
-<option>6</option>
-<option>7</option>
-<option>8</option>
-<option>9</option>
-<option selected>10</option>
-</select>
-
-<label style="display:flex;gap:10px;align-items:center;margin-bottom:16px">
-<input type="checkbox" id="mpAllowAI" checked>
-<span>KI auffüllen</span>
-</label>
-
-<button id="createRoomBtn" style="
-width:100%;
-padding:14px;
-border:none;
-border-radius:14px;
-background:#8b5cf6;
-color:white;
-font-weight:bold;
-cursor:pointer;
-">
-Raum erstellen
-</button>
+<button id="createRoomBtn" style="display:none">Raum erstellen</button>
 
 </div>
 
@@ -3587,55 +3552,12 @@ window.joinRoom = function(roomId){
 
 };
 
+// Stage2 createRoom deaktiviert — nur Düsseldorf-Raum wird genutzt
 const oldCreate = window.createRoom;
 
 window.createRoom = function(){
-
- const names = [
-  'Düsseldorf',
-  'Bensheim',
-  'Alsbach',
-  'Griesheim',
-  'Zwingenberg',
-  'Mainz'
- ];
-
- const roomName =
- names[Math.floor(Math.random()*names.length)];
-
- const maxPlayers =
- parseInt(
-  document.getElementById('mpMaxPlayers').value
- );
-
- const allowAI =
- document.getElementById('mpAllowAI').checked;
-
- const roomId =
- 'room_' + Math.random().toString(36).slice(2,8);
-
- const room = {
-   id:roomId,
-   name:roomName,
-   host:window.currentPlayerName,
-   maxPlayers,
-   allowAI,
-   phase:'waiting',
-   players:[
-     {
-       id:window.currentUserId,
-       name:window.currentPlayerName,
-       type:'human'
-     }
-   ]
- };
-
- firebase.database()
- .ref('z10_rooms/'+roomId)
- .set(room);
-
- watchRoom(roomId);
-
+  console.log('[Bridge] createRoom blockiert — Einzel-Raum-System aktiv');
+  // Namen, Spieler etc. werden von Stage10 gehandhabt
 };
 
 })();
@@ -4568,6 +4490,15 @@ function gameRef(){
 }
 
 async function ensureMainRoom(){
+
+ // Alte Räume aggressiv löschen (außer Düsseldorf)
+ try{
+   const allSnap = await db.ref('z10_rooms').once('value');
+   const all = allSnap.val() || {};
+   for(const [key] of Object.entries(all)){
+     if(key !== ROOM_ID) await db.ref('z10_rooms/'+key).remove();
+   }
+ }catch(e){}
 
  // Alten gameover-State löschen
  try{
