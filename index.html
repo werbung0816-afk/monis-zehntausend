@@ -2314,13 +2314,7 @@ renderStage(stage);
 
 clearInterval(victoryTimer);
 
-victoryTimer = setInterval(()=>{
-
-stage++;
-
-if(stage >= podiumSequence.length){
-
-clearInterval(victoryTimer);
+victoryTimer = /* legacy interval disabled */
 return;
 
 }
@@ -3573,6 +3567,155 @@ window.advancedScore = advancedScore;
 const originalSet = window.set;
 
 console.log("🎮 Advanced rules loaded");
+
+</script>
+
+
+<script>
+/* legacy interval disabled */
+
+  const names =
+  window.gameState.players || [];
+
+  let i = 0;
+
+  playerCards.forEach(card => {
+
+    const txt = card.innerText || "";
+
+    if(
+      txt.includes("KI") ||
+      txt.includes("Silke") ||
+      txt.includes("Finn") ||
+      txt.includes("Leni") ||
+      txt.includes("Uwe") ||
+      txt.includes("Dani")
+    ){
+
+      card.style.display = "none";
+    }
+
+  });
+
+  const sidebar =
+  document.querySelector(".sidebar")
+  || document.body;
+
+  const existing =
+  document.getElementById("globalPlayersOnly");
+
+  if(existing) existing.remove();
+
+  const wrap =
+  document.createElement("div");
+
+  wrap.id = "globalPlayersOnly";
+
+  wrap.style.cssText = `
+  position:fixed;
+  left:10px;
+  top:180px;
+  width:170px;
+  z-index:999999;
+  `;
+
+  names.forEach((name,index)=>{
+
+    const active =
+    index === window.gameState.activePlayer;
+
+    const score =
+    (window.gameState.totalScores || {})[name] || 0;
+
+    const el =
+    document.createElement("div");
+
+    el.style.cssText = `
+    margin-bottom:14px;
+    padding:16px;
+    border-radius:18px;
+    background:${active ?
+    "linear-gradient(90deg,#53f6ff,#8f5fff)" :
+    "rgba(22,17,43,.95)"};
+    color:white;
+    font-weight:800;
+    font-size:18px;
+    border:1px solid rgba(255,255,255,.08);
+    `;
+
+    el.innerHTML =
+    name + "<br><span style='font-size:34px'>" +
+    score +
+    "</span>";
+
+    wrap.appendChild(el);
+
+  });
+
+  document.body.appendChild(wrap);
+
+},1000);
+</script>
+
+
+<script type="module">
+
+import {
+getDatabase,
+ref,
+onValue
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const stableDb = getDatabase();
+const stableRef = ref(stableDb,"globalGameState");
+
+function stableRender(state){
+
+ if(!state) return;
+
+ if(!state.players) state.players = [];
+ if(!state.dice) state.dice = [1,1,1,1,1,1];
+
+ const diceEls =
+ document.querySelectorAll(".die");
+
+ state.dice.forEach((value,index)=>{
+
+   if(!diceEls[index]) return;
+
+   diceEls[index].innerHTML =
+   '<div style="font-size:72px;font-weight:900;">'
+   + value +
+   '</div>';
+
+ });
+
+ const status =
+ document.querySelector(".status");
+
+ if(status){
+
+   const active =
+   state.players[state.activePlayer] || "-";
+
+   status.innerHTML =
+   "🎲 Aktiver Spieler: " + active;
+
+ }
+
+}
+
+onValue(stableRef,(snapshot)=>{
+
+ const state = snapshot.val();
+
+ if(!state) return;
+
+ window.gameState = state;
+
+ stableRender(state);
+
+});
 
 </script>
 
