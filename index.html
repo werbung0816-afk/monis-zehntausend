@@ -3959,7 +3959,7 @@ window.startSharedGame = function(room){
  const overlay =
  document.getElementById('mpLobbyOverlay');
 
- if(overlay){
+ if(overlay && window._bridgeActive){
    overlay.style.display='none';
  }
 
@@ -4322,54 +4322,26 @@ window.createSharedGameState = async function(room){
 };
 
 window.mountSharedGame = function(state){
+  // Nur ausführen wenn Bridge aktiv (User hat Lobby genutzt)
+  if(!window._bridgeActive) return;
 
- window.gameState = state;
+  window.gameState = state;
 
- const overlay =
- document.getElementById('mpLobbyOverlay');
+  const overlay = document.getElementById('mpLobbyOverlay');
+  if(overlay) overlay.style.display = 'none';
 
- if(overlay){
-   overlay.style.display = 'none';
- }
+  // Badge aktualisieren (kein Overlay erstellen)
+  let badge = document.getElementById('sharedGameBadge');
+  if(!badge){
+    badge = document.createElement('div');
+    badge.id = 'sharedGameBadge';
+    badge.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;background:#16a34a;color:white;padding:8px 14px;border-radius:10px;font-weight:bold;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+    document.body.appendChild(badge);
+  }
+  const current = state.players?.find(p=>p.id===state.activePlayerId);
+  badge.textContent = '🎲 ' + (current?.name || 'Multiplayer');
 
- let badge =
- document.getElementById('sharedGameBadge');
-
- if(!badge){
-
-   badge = document.createElement('div');
-   badge.id = 'sharedGameBadge';
-
-   badge.style.cssText = `
-   position:fixed;
-   top:14px;
-   right:14px;
-   z-index:999999;
-   background:#16a34a;
-   color:white;
-   padding:12px 18px;
-   border-radius:14px;
-   font-weight:bold;
-   font-family:Arial;
-   box-shadow:0 8px 25px rgba(0,0,0,.35);
-   `;
-
-   document.body.appendChild(badge);
-
- }
-
- const current =
- state.players?.find(
-   p=>p.id===state.activePlayerId
- );
-
- badge.innerHTML =
- '🎲 Multiplayer aktiv<br>'
- + 'Aktiv: '
- + (current?.name || '-');
-
- disableTurnButtons(state);
-
+  if(window.hydratePremiumState) window.hydratePremiumState(state);
 };
 
 function disableTurnButtons(state){
@@ -4863,7 +4835,8 @@ async function startSharedGameNow(){
 }
 
 function renderGame(state){
- // Routed to premium UI bridge instead of overlay
+ // Nur aktiv wenn Bridge (User hat Lobby genutzt)
+ if(!window._bridgeActive) return;
  if(window.hydratePremiumState) window.hydratePremiumState(state);
 
  const overlay = document.getElementById('mpLobbyOverlay');
