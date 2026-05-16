@@ -2194,7 +2194,7 @@ renderStats();
 
 <div id="victoryOverlay"></div>
 
-<button id="victoryTestBtn">
+<button id="victoryTestBtn" style="display:none">
 🏆 Siegeransicht testen
 </button>
 
@@ -4569,16 +4569,8 @@ function gameRef(){
 
 async function ensureMainRoom(){
 
- // Alte Test-Räume löschen (außer Düsseldorf)
+ // Alten gameover-State löschen
  try{
-   const allSnap = await db.ref('z10_rooms').once('value');
-   const allRooms = allSnap.val() || {};
-   for(const [key, room] of Object.entries(allRooms)){
-     if(key !== ROOM_ID){
-       await db.ref('z10_rooms/'+key).remove();
-     }
-   }
-   // Alten gameover-State löschen
    const gSnap = await gameRef().once('value');
    const gs = gSnap.val();
    if(gs && gs.phase === 'gameover'){
@@ -5090,8 +5082,13 @@ window.hydratePremiumState = function(state){
   if(state.phase !== 'playing') return;
   if(!state.players || state.players.length === 0) return;
 
-  // Bridge nur aktiv wenn wir uns im Multiplayer-Modus befinden
-  if(!window._bridgeActive) return;
+  // Bridge automatisch aktivieren wenn Spiel läuft (für Gäste)
+  if(!window._bridgeActive){
+    // Nur aktivieren wenn wir in der Lobby waren (mpLobbyOverlay existiert)
+    const inLobby = document.getElementById('mpLobbyOverlay');
+    if(!inLobby) return; // Rein lokales Spiel, nicht überschreiben
+    window._bridgeActive = true;
+  }
 
   // Veraltete Updates ignorieren
   if(state.updatedAt && state.updatedAt <= _lastTs) return;
@@ -5228,19 +5225,36 @@ document.addEventListener('click', e=>{
   }
 });
 
-/* ── 6. STAGE2 renderRooms auf Einzel-Raum beschränken ── */
-// Überschreibe window.mpRooms Observer damit nur Düsseldorf erscheint
-const _origMpRooms = Object.getOwnPropertyDescriptor(window, 'mpRooms');
+/* ── 6. Raum-Pool: Nur aktive Räume aus bekanntem Pool anzeigen ── */
+// Pool bekannter Raumnamen — werden nur angelegt wenn wirklich genutzt
+const ROOM_NAME_POOL = ['Düsseldorf','Griesheim','Bensheim','Alsbach','Zwingenberg'];
+
+// STAGE2's mpRooms auf Pool-Räume beschränken
 Object.defineProperty(window, 'mpRooms', {
   get(){ return this._mpRoomsVal || []; },
   set(val){
-    // Nur den einzigen Düsseldorf-Raum durchlassen
-    this._mpRoomsVal = (val||[]).filter(r=>
-      !r.id || r.id === 'duesseldorf' || r.name === 'Düsseldorf'
-    );
+    // Nur Räume aus dem Pool anzeigen, keine alten/wilden Räume
+    const poolIds = ROOM_NAME_POOL.map(n=>n.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue'));
+    this._mpRoomsVal = (val||[]).filter(r=>{
+      const id = (r.id||'').toLowerCase();
+      const name = (r.name||'').toLowerCase();
+      return poolIds.some(p=>id===p||name.startsWith(p.slice(0,4)));
+    });
   },
   configurable: true
 });
+
+// Nächsten freien Raum aus Pool finden
+window.getNextFreeRoom = async function(){
+  const db = firebase.database();
+  for(const name of ROOM_NAME_POOL){
+    const id = name.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue');
+    const snap = await db.ref('z10_rooms/'+id).once('value');
+    const room = snap.val();
+    if(!room || room.phase === 'waiting') return {id, name};
+  }
+  return {id: ROOM_NAME_POOL[0].toLowerCase(), name: ROOM_NAME_POOL[0]};
+};
 
 console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
