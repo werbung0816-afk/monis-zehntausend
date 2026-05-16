@@ -3548,7 +3548,7 @@ window.startSharedGame = function(room){
  const overlay =
  document.getElementById('mpLobbyOverlay');
 
- if(overlay){
+ if(overlay && window._bridgeActive){
    overlay.style.display = 'none';
  }
 
@@ -4336,7 +4336,7 @@ window.mountSharedGame = function(state){
   window.gameState = state;
 
   const overlay = document.getElementById('mpLobbyOverlay');
-  if(overlay) overlay.style.display = 'none';
+  if(overlay && window._bridgeActive) overlay.style.display = 'none';
 
   // Badge aktualisieren (kein Overlay erstellen)
   let badge = document.getElementById('sharedGameBadge');
@@ -4848,7 +4848,7 @@ function renderGame(state){
  if(window.hydratePremiumState) window.hydratePremiumState(state);
 
  const overlay = document.getElementById('mpLobbyOverlay');
- if(overlay) overlay.style.display='none';
+ if(overlay && window._bridgeActive) overlay.style.display='none';
 
  const panel = document.getElementById('sharedGamePanel');
  if(panel) panel.style.display='none';
@@ -5033,6 +5033,28 @@ window.addEventListener('load',async ()=>{
    ══════════════════════════════════════════════════════════════ */
 (function(){
 
+/* MutationObserver: verhindert dass Lobby versteckt wird solange _bridgeActive=false */
+document.addEventListener('DOMContentLoaded',()=>{
+  const lobby = document.getElementById('mpLobbyOverlay');
+  if(!lobby) return;
+  const obs = new MutationObserver(()=>{
+    if(!window._bridgeActive && lobby.style.display === 'none'){
+      lobby.style.display = 'flex';
+    }
+  });
+  obs.observe(lobby, {attributes:true, attributeFilter:['style']});
+  window._lobbyObserver = obs;
+  // Lobby immer sichtbar bis User aktiv beitritt
+  lobby.style.display = 'flex';
+  lobby.style.zIndex = '999999';
+});
+
+/* Bridge deaktiviert Lobby-Observer wenn User beitritt */
+window._activateBridge = function(){
+  window._bridgeActive = true;
+  if(window._lobbyObserver) window._lobbyObserver.disconnect();
+};
+
 const ROOM_ID = 'duesseldorf';
 let _gameRef = null;
 let _isBridgeActive = false;
@@ -5149,7 +5171,7 @@ window.hydratePremiumState = function(state){
 
 /* ── 3. SPIELER IDs INITIALISIEREN ── */
 window.initBridgeForHost = function(){
-  window._bridgeActive = true;
+  window._activateBridge();
   window._myPlayerIndex = 0; // Host ist immer Spieler 0
   // IDs für alle Spieler setzen
   players.forEach((p,i)=>{
@@ -5164,7 +5186,7 @@ window.initBridgeForHost = function(){
 };
 
 window.initBridgeForGuest = function(playerIndex){
-  window._bridgeActive = true;
+  window._activateBridge();
   window._myPlayerIndex = (typeof playerIndex === 'number') ? playerIndex : -1;
   console.log('[Bridge] Gast verbunden als Spieler', window._myPlayerIndex);
 };
@@ -5180,7 +5202,7 @@ window.addEventListener('load', ()=>{
     if(!state.players || state.players.length === 0) return;
 
     // Bridge für Gast aktivieren sobald Spiel läuft
-    window._bridgeActive = true;
+    window._activateBridge();
 
     // Spieler-Index aus ID ermitteln falls noch nicht gesetzt
     if(window._myPlayerIndex === undefined || window._myPlayerIndex === -1){
