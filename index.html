@@ -3316,8 +3316,11 @@ localStorage.getItem('z10_name') || '';
 // Name in Lobby-Input eintragen sobald DOM bereit (mehrfach versuchen)
 function prefillName(){
   const inp = document.getElementById('mpPlayerNameInput');
-  const saved = localStorage.getItem('z10_name')||'';
-  if(inp && saved) inp.value = saved;
+  if(!inp) return;
+  let saved = localStorage.getItem('z10_name')||'';
+  // Alte zufällige Namen bereinigen
+  if(/^Spieler_?\d+$/i.test(saved)) saved = '';
+  if(saved) inp.value = saved;
 }
 setTimeout(prefillName, 300);
 setTimeout(prefillName, 1000);
@@ -5433,12 +5436,4 @@ console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 </script>
 
 </body>
-</html<div style="background:#241d40;border-radius:16px;padding:16px;margin-bottom:12px;">
-  <label style="font-size:13px;font-weight:600;color:rgba(255,255,255,.6);display:block;margin-bottom:6px;letter-spacing:.5px;">DEIN NAME *</label>
-  <input id="mpPlayerNameInput" type="text" maxlength="16" placeholder="Name eingeben…" autocomplete="off"
-    style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid rgba(139,92,246,.4);background:#130f23;color:white;font-family:inherit;font-size:15px;outline:none;box-sizing:border-box;transition:border .2s"
-    onfocus="this.style.borderColor='rgba(139,92,246,.9)'" onblur="this.style.borderColor='rgba(139,92,246,.4)'"
-  >
-  <div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:4px">⚠ Bitte gib einen Namen ein</div>
-</div>
->
+</html>
