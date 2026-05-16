@@ -2802,7 +2802,7 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 }
 </style>
 
-<div id="devPanel">
+<div id="devPanel" style="display:none">
     <button class="devBtn" onclick="devAddRound()">+1 Runde</button>
     <button class="devBtn" onclick="devShowVictory()">🏆 Siegeransicht</button>
 </div>
@@ -4569,6 +4569,23 @@ function gameRef(){
 
 async function ensureMainRoom(){
 
+ // Alte Test-Räume löschen (außer Düsseldorf)
+ try{
+   const allSnap = await db.ref('z10_rooms').once('value');
+   const allRooms = allSnap.val() || {};
+   for(const [key, room] of Object.entries(allRooms)){
+     if(key !== ROOM_ID){
+       await db.ref('z10_rooms/'+key).remove();
+     }
+   }
+   // Alten gameover-State löschen
+   const gSnap = await gameRef().once('value');
+   const gs = gSnap.val();
+   if(gs && gs.phase === 'gameover'){
+     await gameRef().remove();
+   }
+ }catch(e){ console.warn('cleanup:', e); }
+
  const snap = await roomRef().once('value');
 
  if(snap.exists()) return;
@@ -5209,6 +5226,20 @@ document.addEventListener('click', e=>{
       setTimeout(()=>window.initBridgeForHost(), 600);
     }
   }
+});
+
+/* ── 6. STAGE2 renderRooms auf Einzel-Raum beschränken ── */
+// Überschreibe window.mpRooms Observer damit nur Düsseldorf erscheint
+const _origMpRooms = Object.getOwnPropertyDescriptor(window, 'mpRooms');
+Object.defineProperty(window, 'mpRooms', {
+  get(){ return this._mpRoomsVal || []; },
+  set(val){
+    // Nur den einzigen Düsseldorf-Raum durchlassen
+    this._mpRoomsVal = (val||[]).filter(r=>
+      !r.id || r.id === 'duesseldorf' || r.name === 'Düsseldorf'
+    );
+  },
+  configurable: true
 });
 
 console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
