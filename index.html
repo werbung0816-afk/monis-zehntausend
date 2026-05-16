@@ -1039,6 +1039,81 @@ localStorage.setItem(
 console.log('Z10 Multiplayer Bootstrap Active');
 </script>
 
+
+<style id="responsive-overrides">
+/* ── RESPONSIVE DESIGN ── */
+@media (max-width: 900px){
+  /* Layout: Spalte statt Zeile */
+  .gameLayout { flex-direction: column !important; }
+  
+  /* Panels nebeneinander oben */
+  .panel { 
+    width: 100% !important; 
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  
+  /* Spieler-Panel: horizontal scrollen */
+  #players {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  
+  /* Einzelner Spieler kompakter */
+  .player {
+    flex: 1 !important;
+    min-width: 80px !important;
+    max-width: 140px !important;
+    padding: 6px 8px !important;
+  }
+  
+  /* Würfelbereich */
+  .diceWrap { 
+    min-height: 120px !important; 
+    padding: 10px !important;
+  }
+  
+  /* Würfel */
+  .die { 
+    width: clamp(50px, 13vw, 80px) !important; 
+    height: clamp(50px, 13vw, 80px) !important; 
+    font-size: clamp(22px, 6vw, 36px) !important;
+  }
+  
+  /* Action Buttons */
+  .roll, .bank, .end {
+    padding: 12px 8px !important;
+    font-size: clamp(12px, 3vw, 15px) !important;
+  }
+}
+
+@media (max-width: 600px){
+  .player {
+    min-width: 65px !important;
+    max-width: 100px !important;
+    padding: 4px 6px !important;
+    font-size: 12px !important;
+  }
+  
+  .die { 
+    width: clamp(42px, 15vw, 62px) !important; 
+    height: clamp(42px, 15vw, 62px) !important; 
+    font-size: clamp(18px, 7vw, 28px) !important;
+  }
+  
+  .diceWrap { min-height: 100px !important; padding: 8px !important; }
+  
+  .roll, .bank, .end {
+    font-size: clamp(11px, 3.5vw, 13px) !important;
+    padding: 10px 4px !important;
+  }
+  
+  /* Punkte-Log kleiner */
+  #gameLog, .logEntry { font-size: 11px !important; }
+}
+</style>
 </head>
 <body>
 <div id="backToLobbyBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:rgba(10,6,20,.97);backdrop-filter:blur(10px);padding:8px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(139,92,246,.3)">
@@ -1526,9 +1601,10 @@ document.getElementById('status').innerText=t;
 
 function rollDice(){
 
-// Multiplayer Turn-Guard (Index-basiert)
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
 if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  if(currentPlayer !== window._myPlayerIndex){
+  const isAITurn = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn && currentPlayer !== window._myPlayerIndex){
     const activeName = players?.[currentPlayer]?.name || 'Anderer Spieler';
     setStatus("⏳ " + activeName + " ist am Zug...");
     return;
@@ -1664,9 +1740,10 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function bankPoints(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard (Index-basiert)
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
 if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  if(currentPlayer !== window._myPlayerIndex) return;
+  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
 }
 
 if(selectedPoints<=0){
@@ -1826,9 +1903,10 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function endTurn(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard (Index-basiert)
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
 if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  if(currentPlayer !== window._myPlayerIndex) return;
+  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
 }
 
 if(roundPoints<250){
