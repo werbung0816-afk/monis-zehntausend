@@ -3638,7 +3638,7 @@ window.startSharedGame = function(room){
 const oldJoin = window.joinRoom;
 
 // Name aus Input-Feld in currentPlayerName schreiben
-function applyLobbyName(){
+window.applyLobbyName = function applyLobbyName(){
   const inp = document.getElementById('mpPlayerNameInput');
   const errEl = document.getElementById('mpNameError');
   if(!inp) return true;
@@ -3655,6 +3655,7 @@ function applyLobbyName(){
   localStorage.setItem('z10_name', name);
   return true;
 }
+function applyLobbyName(){ return window.applyLobbyName(); }
 
 window.joinRoom = function(roomId){
   if(!applyLobbyName()) return;
@@ -4850,7 +4851,7 @@ window.startSharedGameNow = async function startSharedGameNow(){
  window.currentPlayerName = typedName;
  localStorage.setItem('z10_name', typedName);
 
- if(!applyLobbyName || !applyLobbyName()) return;
+ // (applyLobbyName bereits oben inline erledigt)
 
  // Wenn noch nicht beigetreten, erst beitreten
  const preSnap = await roomRef().once('value');
