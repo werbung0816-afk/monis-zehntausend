@@ -1466,6 +1466,14 @@ document.getElementById('status').innerText=t;
 
 function rollDice(){
 
+// Multiplayer Turn-Guard
+if(window.gameState && window.currentUserId){
+  if(window.gameState.activePlayerId !== window.currentUserId){
+    setStatus("⏳ " + (window.gameState.players?.find(p=>p.id===window.gameState.activePlayerId)?.name||'Anderer Spieler') + " ist am Zug.");
+    return;
+  }
+}
+
 // Harte Sperre gegen illegales Nachwürfeln
 if(actionLocked){
 setStatus("⚠️ Erst sichern oder Zug beenden.");
@@ -1589,10 +1597,16 @@ addLog(players[currentPlayer].name + " würfelt: " + dice.join(", "));
 
 renderDice();
 renderStats();
+if(window.pushStateToFirebase) window.pushStateToFirebase();
 }
 
 function bankPoints(){
 actionLocked=false;
+
+// Multiplayer Turn-Guard
+if(window.gameState && window.currentUserId){
+  if(window.gameState.activePlayerId !== window.currentUserId) return;
+}
 
 if(selectedPoints<=0){
 setStatus("Keine gültigen Würfel gewählt.");
@@ -1745,10 +1759,16 @@ return;
 
 renderDice();
 renderStats();
+if(window.pushStateToFirebase) window.pushStateToFirebase();
 }
 
 function endTurn(){
 actionLocked=false;
+
+// Multiplayer Turn-Guard
+if(window.gameState && window.currentUserId){
+  if(window.gameState.activePlayerId !== window.currentUserId) return;
+}
 
 if(roundPoints<250){
 setStatus("⚠️ Du hast noch keine 250 Punkte erreicht.");
@@ -1846,6 +1866,7 @@ renderStats();
 showOverlay(players[currentPlayer].name, comment);
 
 setStatus(players[currentPlayer].name + " ist am Zug. Jetzt würfeln.");
+if(window.pushStateToFirebase) window.pushStateToFirebase();
 
 if(players[currentPlayer].isAI){
 
@@ -4770,37 +4791,17 @@ async function startSharedGameNow(){
 }
 
 function renderGame(state){
+ // Routed to premium UI bridge instead of overlay
+ if(window.hydratePremiumState) window.hydratePremiumState(state);
 
- const overlay =
- document.getElementById('mpLobbyOverlay');
+ const overlay = document.getElementById('mpLobbyOverlay');
+ if(overlay) overlay.style.display='none';
 
- if(overlay){
-   overlay.style.display='none';
- }
+ const panel = document.getElementById('sharedGamePanel');
+ if(panel) panel.style.display='none';
 
- let panel =
- document.getElementById('sharedGamePanel');
-
- if(!panel){
-
-   panel = document.createElement('div');
-
-   panel.id = 'sharedGamePanel';
-
-   panel.style.cssText = `
-   position:fixed;
-   inset:0;
-   z-index:999999;
-   background:#0f172a;
-   color:white;
-   font-family:Arial;
-   padding:30px;
-   overflow:auto;
-   `;
-
-   document.body.appendChild(panel);
-
- }
+ if(false){ // disabled old overlay
+ let panel2 = null;
 
  const active =
  state.players.find(
@@ -4889,6 +4890,8 @@ function renderGame(state){
  .getElementById('endTurnBtn')
  ?.addEventListener('click',endTurn);
 
+ } // end disabled block
+
 }
 
 async function rollDice(){
@@ -4967,304 +4970,194 @@ window.addEventListener('load',async ()=>{
 </script>
 
 
+<!-- Stage11 removed - replaced by bridge -->
+
+
 <script>
+/* ══════════════════════════════════════════════════════════════
+   BRIDGE: Verbindet lokale Premium-Engine mit Firebase gameState
+   Alle Clients rendern aus demselben geteilten State.
+   ══════════════════════════════════════════════════════════════ */
 (function(){
 
-console.log('FINAL STAGE11 SHARED PREMIUM RENDER');
-
-if(!window.firebase) return;
-
-const db = firebase.database();
 const ROOM_ID = 'duesseldorf';
+let _gameRef = null;
+let _isBridgeActive = false;
+let _lastTs = 0;
 
-window.gameState = null;
-
-function gameRef(){
- return db.ref('z10_games/' + ROOM_ID);
+function getGameRef(){
+  if(_gameRef) return _gameRef;
+  if(!window.firebase) return null;
+  _gameRef = firebase.database().ref('z10_games/' + ROOM_ID);
+  return _gameRef;
 }
 
-function ensurePremiumOverlay(){
-
- let overlay =
- document.getElementById('premiumSharedOverlay');
-
- if(overlay) return overlay;
-
- overlay = document.createElement('div');
-
- overlay.id = 'premiumSharedOverlay';
-
- overlay.style.cssText = `
- position:fixed;
- inset:0;
- background:
- radial-gradient(circle at top,#312e81,#0f172a);
- z-index:9999999;
- color:white;
- font-family:Arial;
- overflow:auto;
- padding:24px;
- display:none;
- `;
-
- document.body.appendChild(overlay);
-
- return overlay;
-}
-
-function renderPremiumShared(state){
-
- const overlay = ensurePremiumOverlay();
-
- overlay.style.display = 'block';
-
- window.gameState = state;
-
- const active =
- (state.players || []).find(
-  p=>p.id===state.activePlayerId
- );
-
- const myTurn =
- state.activePlayerId === window.currentUserId;
-
- overlay.innerHTML = `
- <div style="
- display:flex;
- justify-content:space-between;
- align-items:center;
- flex-wrap:wrap;
- gap:20px;
- ">
-
-   <div>
-     <h1 style="
-     margin:0;
-     font-size:38px;
-     ">
-     🎲 Düsseldorf Multiplayer
-     </h1>
-
-     <div style="
-     opacity:.8;
-     margin-top:10px;
-     ">
-     Aktiver Spieler:
-     <b>${active?.name || '-'}</b>
-     </div>
-   </div>
-
-   <div style="
-   background:rgba(255,255,255,.08);
-   padding:14px 18px;
-   border-radius:18px;
-   ">
-   Phase: ${state.phase}
-   </div>
-
- </div>
-
- <div style="
- margin-top:28px;
- display:grid;
- grid-template-columns:
- repeat(auto-fit,minmax(220px,1fr));
- gap:16px;
- ">
-
- ${(state.players || []).map(p=>`
-
-   <div style="
-   background:${
-     p.id===state.activePlayerId
-     ? 'rgba(139,92,246,.45)'
-     : 'rgba(255,255,255,.06)'
-   };
-   border-radius:20px;
-   padding:18px;
-   border:2px solid rgba(255,255,255,.08);
-   ">
-
-     <div style="
-     font-size:22px;
-     font-weight:bold;
-     ">
-     ${p.name}
-     </div>
-
-     <div style="
-     margin-top:10px;
-     opacity:.8;
-     ">
-     Punkte:
-     ${
-       state.totalScores?.[p.id] || 0
-     }
-     </div>
-
-   </div>
-
- `).join('')}
-
- </div>
-
- <div style="
- margin-top:34px;
- display:flex;
- gap:18px;
- flex-wrap:wrap;
- justify-content:center;
- ">
-
- ${(state.dice || []).map(v=>`
-
-   <div style="
-   width:95px;
-   height:95px;
-   border-radius:22px;
-   background:white;
-   color:black;
-   display:flex;
-   align-items:center;
-   justify-content:center;
-   font-size:46px;
-   font-weight:bold;
-   box-shadow:0 10px 30px rgba(0,0,0,.35);
-   ">
-   ${v}
-   </div>
-
- `).join('')}
-
- </div>
-
- <div style="
- margin-top:40px;
- display:flex;
- gap:16px;
- justify-content:center;
- flex-wrap:wrap;
- ">
-
-   <button
-    id="sharedRollBtn"
-    ${myTurn ? '' : 'disabled'}
-    style="
-    padding:16px 22px;
-    border:none;
-    border-radius:16px;
-    background:${myTurn ? '#8b5cf6' : '#555'};
-    color:white;
-    font-size:18px;
-    font-weight:bold;
-    cursor:pointer;
-    ">
-    Würfeln
-   </button>
-
-   <button
-    id="sharedEndBtn"
-    ${myTurn ? '' : 'disabled'}
-    style="
-    padding:16px 22px;
-    border:none;
-    border-radius:16px;
-    background:${myTurn ? '#16a34a' : '#555'};
-    color:white;
-    font-size:18px;
-    font-weight:bold;
-    cursor:pointer;
-    ">
-    Zug beenden
-   </button>
-
- </div>
- `;
-
- document
- .getElementById('sharedRollBtn')
- ?.addEventListener('click',sharedRollDice);
-
- document
- .getElementById('sharedEndBtn')
- ?.addEventListener('click',sharedEndTurn);
-
-}
-
-async function sharedRollDice(){
-
- const snap = await gameRef().once('value');
- const state = snap.val();
-
- if(!state) return;
-
- if(
-  state.activePlayerId
-  !== window.currentUserId
- ){
-   return;
- }
-
- state.dice =
- Array.from({length:6})
- .map(()=>1 + Math.floor(Math.random()*6));
-
- state.updatedAt = Date.now();
-
- await gameRef().set(state);
-
-}
-
-async function sharedEndTurn(){
-
- const snap = await gameRef().once('value');
- const state = snap.val();
-
- if(!state) return;
-
- if(
-  state.activePlayerId
-  !== window.currentUserId
- ){
-   return;
- }
-
- const next =
- (state.activePlayerIndex + 1)
- % state.players.length;
-
- state.activePlayerIndex = next;
-
- state.activePlayerId =
- state.players[next].id;
-
- state.updatedAt = Date.now();
-
- await gameRef().set(state);
-
-}
-
-function watchSharedGame(){
-
- gameRef().on('value',snap=>{
-
-   const state = snap.val();
-
-   if(!state) return;
-
-   if(state.phase !== 'playing') return;
-
-   renderPremiumShared(state);
-
- });
-
-}
-
-window.addEventListener('load',()=>{
-
- watchSharedGame();
-
+/* ── 1. STATE → FIREBASE (nach jeder lokalen Aktion) ── */
+window.pushStateToFirebase = function(){
+  if(!_isBridgeActive) return;
+  const ref = getGameRef();
+  if(!ref) return;
+
+  const state = {
+    currentPlayer,
+    dice: [...dice],
+    selected: [...selected],
+    roundPoints,
+    mustSecure,
+    hasRolledThisTurn,
+    players: players.map(p=>({
+      name: p.name,
+      score: p.score,
+      isAI: !!p.isAI,
+      id: p.id || null
+    })),
+    activePlayerId: players[currentPlayer]?.id || null,
+    phase: 'playing',
+    updatedAt: Date.now()
+  };
+
+  window.gameState = state;
+  ref.set(state).catch(e=>console.warn('push:', e));
+};
+
+/* ── 2. FIREBASE → LOKALE VARIABLEN (Hydration) ── */
+window.hydratePremiumState = function(state){
+  if(!state) return;
+  if(!_isBridgeActive) return;
+
+  // Veraltete Updates ignorieren
+  if(state.updatedAt && state.updatedAt <= _lastTs) return;
+  _lastTs = state.updatedAt || 0;
+
+  window.gameState = state;
+
+  const myId = window.currentUserId;
+  const isMyTurn = state.activePlayerId === myId;
+
+  // Lokale Variablen hydratisieren
+  if(Array.isArray(state.players)){
+    players = state.players.map(p=>({
+      name: p.name,
+      score: p.score || 0,
+      isAI: !!p.isAI,
+      id: p.id || null
+    }));
+  }
+  if(typeof state.currentPlayer === 'number') currentPlayer = state.currentPlayer;
+  if(Array.isArray(state.dice)) dice = [...state.dice];
+  if(Array.isArray(state.selected)) selected = [...state.selected];
+  if(typeof state.roundPoints === 'number') roundPoints = state.roundPoints;
+  if(typeof state.mustSecure === 'boolean') mustSecure = state.mustSecure;
+  if(typeof state.hasRolledThisTurn === 'boolean') hasRolledThisTurn = state.hasRolledThisTurn;
+
+  // Lobby ausblenden, Spiel anzeigen
+  const setup = document.getElementById('setupScreen');
+  if(setup) setup.style.display = 'none';
+  const lobby = document.getElementById('mpLobbyOverlay');
+  if(lobby) lobby.style.display = 'none';
+
+  // Premium-UI rendern
+  if(typeof renderPlayers === 'function') renderPlayers();
+  if(typeof renderDice === 'function') renderDice();
+  if(typeof renderStats === 'function') renderStats();
+
+  // Buttons sperren wenn nicht dran
+  const btnLabels = ['Würfeln','Sichern','Zug beenden'];
+  document.querySelectorAll('button').forEach(btn=>{
+    const txt = (btn.innerText||'').trim();
+    if(btnLabels.includes(txt)){
+      btn.disabled = !isMyTurn;
+      btn.style.opacity = isMyTurn ? '1' : '0.45';
+    }
+  });
+
+  // Status anzeigen
+  if(typeof setStatus === 'function'){
+    if(isMyTurn){
+      setStatus('🎲 Du bist dran!');
+    } else {
+      const active = state.players?.find(p=>p.id===state.activePlayerId);
+      setStatus('⏳ ' + (active?.name||'Anderer Spieler') + ' ist am Zug…');
+    }
+  }
+
+  // Nicht-KI-Spieler lassen KI nur auf dem Host laufen
+  actionLocked = false;
+  isRolling = false;
+};
+
+/* ── 3. SPIELER IDs INITIALISIEREN ── */
+window.initBridgeForHost = function(){
+  _isBridgeActive = true;
+  // IDs für alle Spieler setzen
+  players.forEach((p,i)=>{
+    if(!p.id){
+      p.id = p.isAI
+        ? ('ai_' + i + '_' + Math.random().toString(36).slice(2,6))
+        : (window.currentUserId || 'host');
+    }
+  });
+  console.log('[Bridge] Host initialisiert, Spieler:', players.map(p=>p.name+'/'+p.id));
+  window.pushStateToFirebase();
+};
+
+window.initBridgeForGuest = function(){
+  _isBridgeActive = true;
+  console.log('[Bridge] Gast verbunden');
+};
+
+/* ── 4. FIREBASE LISTENER (für Gäste, zusätzlich zu Stage10) ── */
+window.addEventListener('load', ()=>{
+  const ref = getGameRef();
+  if(!ref) return;
+
+  ref.on('value', snap=>{
+    const state = snap.val();
+    if(!state || state.phase !== 'playing') return;
+
+    // Nur hydratisieren wenn nicht der Host (der schreibt selbst)
+    const myId = window.currentUserId;
+    const isHost = state.players?.[0]?.id === myId;
+
+    // Gast: immer hydratisieren
+    // Host: nur wenn der State von woanders kam (anderer Timestamp)
+    if(!isHost || state.activePlayerId !== myId){
+      window.hydratePremiumState(state);
+    }
+  });
 });
+
+/* ── 5. HOST-START patchen ── */
+// startSharedGameNow überschreiben um Bridge zu initialisieren
+const _origSSGN = window.startSharedGameNow;
+window.startSharedGameNow_orig = _origSSGN;
+
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('#startMainGameBtn');
+  if(!btn) return;
+  // Bridge für Host starten nach kurzem Delay (Setup muss fertig sein)
+  setTimeout(()=>{
+    if(typeof players !== 'undefined' && players.length > 0){
+      window.initBridgeForHost();
+    }
+  }, 800);
+});
+
+// Auch auf den lokalen "Spiel starten" Button hören (setupScreen)
+document.addEventListener('click', e=>{
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const txt = (btn.innerText||'').trim();
+  if(txt === 'Spiel starten' && document.getElementById('setupScreen')){
+    // Solo-Modus: Bridge inaktiv lassen (Firebase nicht nötig)
+    // Nur aktivieren wenn Multiplayer-Lobby aktiv ist
+    if(document.getElementById('mpLobbyOverlay')?.style.display !== 'none'){
+      setTimeout(()=>window.initBridgeForHost(), 600);
+    }
+  }
+});
+
+console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
 })();
 </script>
