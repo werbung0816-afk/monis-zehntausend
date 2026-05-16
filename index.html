@@ -2117,11 +2117,16 @@ nextPlayer("⚠️ KI-Fehler.");
 
 
 function restartGame(){
-
-if(confirm("Möchtest du wirklich neu starten?")){
-location.reload();
-}
-
+if(!confirm("Möchtest du wirklich neu starten?")) return;
+// Firebase-State löschen dann neu laden
+try{
+  const db = window.firebase ? firebase.database() : null;
+  if(db){
+    db.ref('z10_games/duesseldorf').remove()
+      .then(()=>location.reload())
+      .catch(()=>location.reload());
+  } else { location.reload(); }
+} catch(e){ location.reload(); }
 }
 
 function launchConfetti(){
@@ -3012,10 +3017,29 @@ padding:20px;
 border-radius:20px;
 ">
 
-<h2>Düsseldorf</h2>
-<p style="color:rgba(255,255,255,.6);margin:8px 0 16px;font-size:14px">
-  Der einzige aktive Raum.<br>Tritt bei oder starte das Spiel.
-</p>
+<h2 style="margin-bottom:12px">Spieleinstellungen</h2>
+
+<label style="font-size:12px;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.5px">SPIELERANZAHL</label>
+<select id="mpMaxPlayers" style="
+  width:100%;padding:11px 14px;margin:6px 0 14px;
+  border-radius:10px;border:2px solid rgba(139,92,246,.4);
+  background:#130f23;color:white;font-family:inherit;font-size:15px;outline:none;cursor:pointer
+">
+  <option value="2">2 Spieler</option>
+  <option value="3">3 Spieler</option>
+  <option value="4" selected>4 Spieler</option>
+  <option value="5">5 Spieler</option>
+  <option value="6">6 Spieler</option>
+  <option value="7">7 Spieler</option>
+  <option value="8">8 Spieler</option>
+  <option value="9">9 Spieler</option>
+  <option value="10">10 Spieler</option>
+</select>
+
+<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.6);cursor:pointer">
+  <input type="checkbox" id="mpAllowAI" checked style="width:16px;height:16px;cursor:pointer">
+  KI-Spieler auffüllen
+</label>
 
 <button id="createRoomBtn" style="display:none">Raum erstellen</button>
 
@@ -4544,7 +4568,7 @@ async function ensureMainRoom(){
    name:'Düsseldorf',
    phase:'waiting',
    status:'active',
-   maxPlayers:10,
+   maxPlayers: (() => { const s=document.getElementById('mpMaxPlayers'); return s?parseInt(s.value):4; })(),
    allowAI:true,
    createdAt:Date.now(),
    lastActivity:Date.now(),
@@ -4755,7 +4779,8 @@ async function startSharedGameNow(){
      id: p.id || ('p_'+i)
    }));
    // Fehlende Slots mit KI auffüllen
-   const maxP = room.maxPlayers || 4;
+   const sel = document.getElementById('mpMaxPlayers');
+   const maxP = sel ? parseInt(sel.value) : (room.maxPlayers || 4);
    const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
    // Shuffle AI pool
    const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
