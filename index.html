@@ -4266,5 +4266,252 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('STAGE9 SHARED GAMESTATE ACTIVE');
+
+if(!window.firebase) return;
+
+const db = firebase.database();
+
+window.activeRoomId = null;
+window.gameState = null;
+
+function gameRef(roomId){
+ return db.ref('z10_games/' + roomId);
+}
+
+window.createSharedGameState = async function(room){
+
+ const state = {
+   roomId: room.id,
+   players: room.players || [],
+   activePlayerIndex: 0,
+   activePlayerId: room.players?.[0]?.id || null,
+   dice: [1,1,1,1,1,1],
+   selected: [],
+   roundScore: 0,
+   totalScores: {},
+   mode: room.mode || 'classic',
+   phase: 'playing',
+   updatedAt: Date.now()
+ };
+
+ state.players.forEach(p=>{
+   state.totalScores[p.id] = 0;
+ });
+
+ await gameRef(room.id).set(state);
+
+};
+
+window.mountSharedGame = function(state){
+
+ window.gameState = state;
+
+ const overlay =
+ document.getElementById('mpLobbyOverlay');
+
+ if(overlay){
+   overlay.style.display = 'none';
+ }
+
+ let badge =
+ document.getElementById('sharedGameBadge');
+
+ if(!badge){
+
+   badge = document.createElement('div');
+   badge.id = 'sharedGameBadge';
+
+   badge.style.cssText = `
+   position:fixed;
+   top:14px;
+   right:14px;
+   z-index:999999;
+   background:#16a34a;
+   color:white;
+   padding:12px 18px;
+   border-radius:14px;
+   font-weight:bold;
+   font-family:Arial;
+   box-shadow:0 8px 25px rgba(0,0,0,.35);
+   `;
+
+   document.body.appendChild(badge);
+
+ }
+
+ const current =
+ state.players?.find(
+   p=>p.id===state.activePlayerId
+ );
+
+ badge.innerHTML =
+ '🎲 Multiplayer aktiv<br>'
+ + 'Aktiv: '
+ + (current?.name || '-');
+
+ disableTurnButtons(state);
+
+};
+
+function disableTurnButtons(state){
+
+ const myTurn =
+ state.activePlayerId === window.currentUserId;
+
+ const labels = [
+  'Würfeln',
+  'Sichern',
+  'Zug beenden'
+ ];
+
+ document.querySelectorAll('button')
+ .forEach(btn=>{
+
+   const txt =
+   (btn.innerText || '').trim();
+
+   if(labels.includes(txt)){
+
+     btn.disabled = !myTurn;
+
+     btn.style.opacity =
+      myTurn ? '1' : '.45';
+
+     btn.style.pointerEvents =
+      myTurn ? 'auto' : 'none';
+
+   }
+
+ });
+
+}
+
+window.watchSharedGame = function(roomId){
+
+ window.activeRoomId = roomId;
+
+ gameRef(roomId)
+ .on('value',(snap)=>{
+
+   const state = snap.val();
+
+   if(!state) return;
+
+   mountSharedGame(state);
+
+ });
+
+};
+
+window.startRoomGame = async function(roomId){
+
+ const roomSnap =
+ await db.ref('z10_rooms/' + roomId)
+ .once('value');
+
+ const room = roomSnap.val();
+
+ if(!room) return;
+
+ await createSharedGameState(room);
+
+ await db.ref('z10_rooms/' + roomId)
+ .update({
+   phase:'playing',
+   lastActivity:Date.now()
+ });
+
+ watchSharedGame(roomId);
+
+};
+
+window.submitSharedAction = async function(action){
+
+ if(!window.gameState) return;
+
+ if(
+  window.gameState.activePlayerId
+  !== window.currentUserId
+ ){
+   return;
+ }
+
+ const state =
+ JSON.parse(JSON.stringify(window.gameState));
+
+ if(action.type === 'END_TURN'){
+
+   const next =
+   (state.activePlayerIndex + 1)
+   % state.players.length;
+
+   state.activePlayerIndex = next;
+
+   state.activePlayerId =
+   state.players[next].id;
+
+ }
+
+ if(action.type === 'ROLL_DICE'){
+
+   state.dice =
+   Array.from({length:6})
+   .map(()=>1+Math.floor(Math.random()*6));
+
+ }
+
+ state.updatedAt = Date.now();
+
+ await gameRef(state.roomId)
+ .set(state);
+
+};
+
+window.addEventListener('load',()=>{
+
+ document.querySelectorAll('button')
+ .forEach(btn=>{
+
+   const txt =
+   (btn.innerText || '').trim();
+
+   if(txt === 'Spiel starten'){
+
+     btn.onclick = async ()=>{
+
+       const roomCards =
+       document.querySelectorAll(
+        '[data-room-id]'
+       );
+
+       const own =
+       Array.from(roomCards)
+       .find(c=>
+         c.dataset.hostId
+         === window.currentUserId
+       );
+
+       if(!own) return;
+
+       await startRoomGame(
+        own.dataset.roomId
+       );
+
+     };
+
+   }
+
+ });
+
+});
+
+})();
+</script>
+
 </body>
 </html>
