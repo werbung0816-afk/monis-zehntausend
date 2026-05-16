@@ -1466,10 +1466,11 @@ document.getElementById('status').innerText=t;
 
 function rollDice(){
 
-// Multiplayer Turn-Guard
-if(window.gameState && window.currentUserId){
-  if(window.gameState.activePlayerId !== window.currentUserId){
-    setStatus("⏳ " + (window.gameState.players?.find(p=>p.id===window.gameState.activePlayerId)?.name||'Anderer Spieler') + " ist am Zug.");
+// Multiplayer Turn-Guard (Index-basiert)
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  if(currentPlayer !== window._myPlayerIndex){
+    const activeName = players?.[currentPlayer]?.name || 'Anderer Spieler';
+    setStatus("⏳ " + activeName + " ist am Zug...");
     return;
   }
 }
@@ -1603,9 +1604,9 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function bankPoints(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard
-if(window.gameState && window.currentUserId){
-  if(window.gameState.activePlayerId !== window.currentUserId) return;
+// Multiplayer Turn-Guard (Index-basiert)
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  if(currentPlayer !== window._myPlayerIndex) return;
 }
 
 if(selectedPoints<=0){
@@ -1765,9 +1766,9 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function endTurn(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard
-if(window.gameState && window.currentUserId){
-  if(window.gameState.activePlayerId !== window.currentUserId) return;
+// Multiplayer Turn-Guard (Index-basiert)
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  if(currentPlayer !== window._myPlayerIndex) return;
 }
 
 if(roundPoints<250){
@@ -3209,8 +3210,13 @@ if(!firebase.apps.length){
 const db = firebase.database();
 
 window.currentPlayerName =
-localStorage.getItem('z10_name')
-|| ('Spieler_'+Math.floor(Math.random()*1000));
+localStorage.getItem('z10_name') || '';
+
+// Name in Lobby-Input eintragen sobald DOM bereit
+setTimeout(()=>{
+  const inp = document.getElementById('mpPlayerNameInput');
+  if(inp && window.currentPlayerName) inp.value = window.currentPlayerName;
+}, 500);
 
 function roomsRef(){
  return db.ref('z10_rooms');
@@ -3514,7 +3520,27 @@ window.startSharedGame = function(room){
 
 const oldJoin = window.joinRoom;
 
+// Name aus Input-Feld in currentPlayerName schreiben
+function applyLobbyName(){
+  const inp = document.getElementById('mpPlayerNameInput');
+  const errEl = document.getElementById('mpNameError');
+  if(!inp) return true;
+  const name = inp.value.trim();
+  if(!name){
+    if(errEl) errEl.style.display='block';
+    inp.style.borderColor='rgba(239,68,68,.7)';
+    inp.focus();
+    return false;
+  }
+  if(errEl) errEl.style.display='none';
+  inp.style.borderColor='rgba(139,92,246,.4)';
+  window.currentPlayerName = name;
+  localStorage.setItem('z10_name', name);
+  return true;
+}
+
 window.joinRoom = function(roomId){
+  if(!applyLobbyName()) return;
 
  firebase.database()
  .ref('z10_rooms/'+roomId)
@@ -4575,6 +4601,16 @@ function renderSingleRoom(room){
  players[0]?.id === window.currentUserId;
 
  list.innerHTML = `
+ <div style="background:#241d40;border-radius:16px;padding:16px;margin-bottom:12px;">
+   <label style="font-size:13px;font-weight:600;color:rgba(255,255,255,.5);display:block;margin-bottom:6px;letter-spacing:.5px">DEIN NAME *</label>
+   <input id="mpPlayerNameInput" type="text" maxlength="16" placeholder="Name eingeben…" autocomplete="off"
+     style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid rgba(139,92,246,.4);background:#130f23;color:#fff;font-family:inherit;font-size:15px;outline:none;box-sizing:border-box"
+     onfocus="this.style.borderColor='rgba(139,92,246,.9)'" onblur="this.style.borderColor='rgba(139,92,246,.4)'"
+     value="${window.currentPlayerName||localStorage.getItem('z10_name')||''}"
+   >
+   <div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:4px">⚠ Bitte gib einen Namen ein</div>
+ </div>
+
  <div
  style="
  background:#171129;
@@ -4701,6 +4737,8 @@ function renderSingleRoom(room){
 
 async function startSharedGameNow(){
 
+ if(!applyLobbyName || !applyLobbyName()) return;
+
  const roomSnap =
  await roomRef().once('value');
 
@@ -4718,12 +4756,16 @@ async function startSharedGameNow(){
    }));
    // Fehlende Slots mit KI auffüllen
    const maxP = room.maxPlayers || 4;
-   const aiPool = ['Ingo','Dani','Holly','Julia','Joschi'].filter(
-     n => !players.some(p=>p.name.startsWith(n))
-   );
+   const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
+   // Shuffle AI pool
+   const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
+   // Filter out names already used by human players
+   const humanNames = players.filter(p=>!p.isAI).map(p=>p.name.toLowerCase().trim());
+   const aiPool = shuffled.filter(n=>!humanNames.includes(n.toLowerCase()));
    let ai=0;
    while(players.length < Math.min(maxP, room.fillWithAI ? maxP : players.length)){
-     players.push({name:(aiPool[ai++]||'KI'+ai)+' (KI)',score:0,isAI:true,id:'ai_'+ai});
+     const aiN = aiPool[ai] || ('KI'+(ai+1)); ai++;
+     players.push({name:aiN+' (KI)',score:0,isAI:true,id:'ai_'+(ai)});
    }
    if(typeof currentPlayer !== 'undefined') currentPlayer = 0;
    if(typeof roundPoints !== 'undefined') roundPoints = 0;
@@ -5081,6 +5123,7 @@ window.hydratePremiumState = function(state){
 /* ── 3. SPIELER IDs INITIALISIEREN ── */
 window.initBridgeForHost = function(){
   window._bridgeActive = true;
+  window._myPlayerIndex = 0; // Host ist immer Spieler 0
   // IDs für alle Spieler setzen
   players.forEach((p,i)=>{
     if(!p.id){
@@ -5093,9 +5136,10 @@ window.initBridgeForHost = function(){
   window.pushStateToFirebase();
 };
 
-window.initBridgeForGuest = function(){
-  _isBridgeActive = true;
-  console.log('[Bridge] Gast verbunden');
+window.initBridgeForGuest = function(playerIndex){
+  window._bridgeActive = true;
+  window._myPlayerIndex = (typeof playerIndex === 'number') ? playerIndex : -1;
+  console.log('[Bridge] Gast verbunden als Spieler', window._myPlayerIndex);
 };
 
 /* ── 4. FIREBASE LISTENER (für Gäste, zusätzlich zu Stage10) ── */
@@ -5110,6 +5154,13 @@ window.addEventListener('load', ()=>{
 
     // Bridge für Gast aktivieren sobald Spiel läuft
     window._bridgeActive = true;
+
+    // Spieler-Index aus ID ermitteln falls noch nicht gesetzt
+    if(window._myPlayerIndex === undefined || window._myPlayerIndex === -1){
+      const myId = window.currentUserId;
+      const idx = state.players.findIndex(p=>p.id===myId);
+      if(idx >= 0) window._myPlayerIndex = idx;
+    }
 
     const myId = window.currentUserId;
     const isHost = state.players?.[0]?.id === myId;
@@ -5188,4 +5239,12 @@ console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 </script>
 
 </body>
-</html>
+</html<div style="background:#241d40;border-radius:16px;padding:16px;margin-bottom:12px;">
+  <label style="font-size:13px;font-weight:600;color:rgba(255,255,255,.6);display:block;margin-bottom:6px;letter-spacing:.5px;">DEIN NAME *</label>
+  <input id="mpPlayerNameInput" type="text" maxlength="16" placeholder="Name eingeben…" autocomplete="off"
+    style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid rgba(139,92,246,.4);background:#130f23;color:white;font-family:inherit;font-size:15px;outline:none;box-sizing:border-box;transition:border .2s"
+    onfocus="this.style.borderColor='rgba(139,92,246,.9)'" onblur="this.style.borderColor='rgba(139,92,246,.4)'"
+  >
+  <div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:4px">⚠ Bitte gib einen Namen ein</div>
+</div>
+>
