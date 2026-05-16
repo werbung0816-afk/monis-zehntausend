@@ -11,6 +11,20 @@
   // Prüfe ob Reset benötigt wird (localStorage-Flag von forceReset)
   const needsReset = localStorage.getItem('z10_force_reset') === '1';
 
+  // Ghost-Spieler direkt via REST aus Raum löschen
+  fetch('https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app/z10_rooms/duesseldorf/players.json')
+    .then(r=>r.json())
+    .then(players=>{
+      if(!players) return;
+      const arr = Array.isArray(players) ? players : Object.values(players);
+      const clean = arr.filter(p=>p&&p.name&&!/^Spieler_?\d+$/i.test(p.name));
+      if(clean.length < arr.length){
+        fetch('https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app/z10_rooms/duesseldorf/players.json',{
+          method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(clean)
+        });
+      }
+    }).catch(()=>{});
+
   // Spielstand per REST lesen
   fetch(GAME_PATH)
     .then(r=>r.json())
@@ -3379,14 +3393,19 @@ function renderRooms(rooms){
      <div style="opacity:.7;margin-top:4px;font-size:14px">
        ${(room.players||[]).length}/${room.maxPlayers} Spieler
      </div>
-     ${(room.players||[]).length > 0 ? `
-     <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-       ${(room.players||[]).map(p=>`
-         <span style="background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.3);
-           border-radius:8px;padding:3px 10px;font-size:12px;color:rgba(255,255,255,.8)">
-           ${p.name||'?'}
-         </span>`).join('')}
-     </div>` : ''}
+     ${(() => {
+       const rawP = room.players||[];
+       const pArr = Array.isArray(rawP) ? rawP : Object.values(rawP);
+       const realP = pArr.filter(p=>p&&p.name&&!/^Spieler_?\d+$/i.test(p.name));
+       return realP.length > 0 ? `
+       <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
+         ${realP.map(p=>`
+           <span style="background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.3);
+             border-radius:8px;padding:3px 10px;font-size:12px;color:rgba(255,255,255,.8)">
+             ${p.name}
+           </span>`).join('')}
+       </div>` : '';
+     })()}
    </div>
 
    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0">
@@ -4879,14 +4898,13 @@ window.startSharedGameNow = async function startSharedGameNow(){
    // Fehlende Slots mit KI auffüllen
    const sel = document.getElementById('mpMaxPlayers');
    const maxP = sel ? parseInt(sel.value) : (room.maxPlayers || 4);
+   const allowAI = document.getElementById('mpAllowAI')?.checked !== false;
    const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
-   // Shuffle AI pool
    const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
-   // Filter out names already used by human players
    const humanNames = players.filter(p=>!p.isAI).map(p=>p.name.toLowerCase().trim());
    const aiPool = shuffled.filter(n=>!humanNames.includes(n.toLowerCase()));
    let ai=0;
-   while(players.length < Math.min(maxP, room.fillWithAI ? maxP : players.length)){
+   while(allowAI && players.length < maxP){
      const aiN = aiPool[ai] || ('KI'+(ai+1)); ai++;
      players.push({name:aiN+' (KI)',score:0,isAI:true,id:'ai_'+(ai)});
    }
@@ -5227,7 +5245,14 @@ window.hydratePremiumState = function(state){
     }));
   }
   if(typeof state.currentPlayer === 'number') currentPlayer = state.currentPlayer;
-  if(Array.isArray(state.dice)) dice = [...state.dice];
+  // Firebase speichert [] als null, {} als Objekt
+  if(state.dice === null || state.dice === undefined){
+    dice = [];
+  } else if(Array.isArray(state.dice)){
+    dice = [...state.dice];
+  } else if(typeof state.dice === 'object'){
+    dice = Object.values(state.dice);
+  }
   if(Array.isArray(state.selected)) selected = [...state.selected];
   if(typeof state.roundPoints === 'number') roundPoints = state.roundPoints;
   if(typeof state.mustSecure === 'boolean') mustSecure = state.mustSecure;
