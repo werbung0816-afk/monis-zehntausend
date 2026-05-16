@@ -4513,5 +4513,458 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('FINAL STAGE10 SINGLE ROOM MULTIPLAYER');
+
+if(!window.firebase) return;
+
+const db = firebase.database();
+
+const ROOM_ID = 'duesseldorf';
+
+window.currentUserId =
+ localStorage.getItem('z10_uid')
+ || ('u_' + Math.random().toString(36).slice(2,10));
+
+localStorage.setItem(
+ 'z10_uid',
+ window.currentUserId
+);
+
+window.currentPlayerName =
+ localStorage.getItem('z10_name')
+ || ('Spieler_' + Math.floor(Math.random()*999));
+
+function roomRef(){
+ return db.ref('z10_rooms/' + ROOM_ID);
+}
+
+function gameRef(){
+ return db.ref('z10_games/' + ROOM_ID);
+}
+
+async function ensureMainRoom(){
+
+ const snap = await roomRef().once('value');
+
+ if(snap.exists()) return;
+
+ await roomRef().set({
+   id:ROOM_ID,
+   name:'Düsseldorf',
+   phase:'waiting',
+   status:'active',
+   maxPlayers:10,
+   allowAI:true,
+   createdAt:Date.now(),
+   lastActivity:Date.now(),
+   players:[]
+ });
+
+}
+
+async function joinMainRoom(){
+
+ const snap = await roomRef().once('value');
+
+ const room = snap.val();
+
+ room.players = room.players || [];
+
+ const exists =
+ room.players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ if(!exists){
+
+   room.players.push({
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
+   });
+
+ }
+
+ room.lastActivity = Date.now();
+
+ await roomRef().set(room);
+
+}
+
+function renderSingleRoom(room){
+
+ const list =
+ document.getElementById('publicRoomList');
+
+ if(!list) return;
+
+ const players =
+ room.players || [];
+
+ const joined =
+ players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ const isHost =
+ players[0]?.id === window.currentUserId;
+
+ list.innerHTML = `
+ <div
+ style="
+ background:#171129;
+ border-radius:20px;
+ padding:20px;
+ "
+ >
+   <div style="
+   display:flex;
+   justify-content:space-between;
+   align-items:center;
+   gap:20px;
+   flex-wrap:wrap;
+   ">
+
+     <div>
+       <div style="
+       font-size:28px;
+       font-weight:bold;
+       ">
+       Düsseldorf
+       </div>
+
+       <div style="
+       opacity:.7;
+       margin-top:6px;
+       ">
+       ${players.length}/10 Spieler
+       </div>
+
+       <div style="
+       opacity:.7;
+       margin-top:4px;
+       ">
+       Status: ${room.phase}
+       </div>
+     </div>
+
+     <div style="
+     display:flex;
+     gap:12px;
+     flex-wrap:wrap;
+     ">
+
+       ${
+         joined
+         ? ''
+         : `
+         <button
+          id="joinMainRoomBtn"
+          style="
+          padding:12px 16px;
+          border:none;
+          border-radius:12px;
+          background:#8b5cf6;
+          color:white;
+          font-weight:bold;
+          cursor:pointer;
+          "
+         >
+         Beitreten
+         </button>
+         `
+       }
+
+       ${
+         isHost
+         ? `
+         <button
+          id="startMainGameBtn"
+          style="
+          padding:12px 16px;
+          border:none;
+          border-radius:12px;
+          background:#16a34a;
+          color:white;
+          font-weight:bold;
+          cursor:pointer;
+          "
+         >
+         Spiel starten
+         </button>
+         `
+         : ''
+       }
+
+     </div>
+
+   </div>
+
+   <div style="
+   margin-top:18px;
+   display:flex;
+   flex-wrap:wrap;
+   gap:10px;
+   ">
+
+   ${
+     players.map(p=>`
+       <div style="
+       background:#241d40;
+       padding:10px 14px;
+       border-radius:12px;
+       ">
+       ${p.name}
+       </div>
+     `).join('')
+   }
+
+   </div>
+
+ </div>
+ `;
+
+ document
+ .getElementById('joinMainRoomBtn')
+ ?.addEventListener('click',joinMainRoom);
+
+ document
+ .getElementById('startMainGameBtn')
+ ?.addEventListener('click',startSharedGameNow);
+
+}
+
+async function startSharedGameNow(){
+
+ const roomSnap =
+ await roomRef().once('value');
+
+ const room = roomSnap.val();
+
+ const state = {
+   roomId:ROOM_ID,
+   phase:'playing',
+   activePlayerIndex:0,
+   activePlayerId:room.players?.[0]?.id || null,
+   players:room.players || [],
+   dice:[1,1,1,1,1,1],
+   totalScores:{},
+   updatedAt:Date.now()
+ };
+
+ state.players.forEach(p=>{
+   state.totalScores[p.id] = 0;
+ });
+
+ await gameRef().set(state);
+
+ await roomRef().update({
+   phase:'playing',
+   lastActivity:Date.now()
+ });
+
+}
+
+function renderGame(state){
+
+ const overlay =
+ document.getElementById('mpLobbyOverlay');
+
+ if(overlay){
+   overlay.style.display='none';
+ }
+
+ let panel =
+ document.getElementById('sharedGamePanel');
+
+ if(!panel){
+
+   panel = document.createElement('div');
+
+   panel.id = 'sharedGamePanel';
+
+   panel.style.cssText = `
+   position:fixed;
+   inset:0;
+   z-index:999999;
+   background:#0f172a;
+   color:white;
+   font-family:Arial;
+   padding:30px;
+   overflow:auto;
+   `;
+
+   document.body.appendChild(panel);
+
+ }
+
+ const active =
+ state.players.find(
+  p=>p.id===state.activePlayerId
+ );
+
+ const myTurn =
+ state.activePlayerId === window.currentUserId;
+
+ panel.innerHTML = `
+ <h1>🎲 Multiplayer aktiv</h1>
+
+ <div style="margin:20px 0">
+ Aktiver Spieler:
+ <b>${active?.name || '-'}</b>
+ </div>
+
+ <div style="
+ display:flex;
+ gap:12px;
+ margin:20px 0;
+ flex-wrap:wrap;
+ ">
+ ${
+   state.dice.map(d=>`
+    <div style="
+    width:70px;
+    height:70px;
+    background:white;
+    color:black;
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:34px;
+    font-weight:bold;
+    ">
+    ${d}
+    </div>
+   `).join('')
+ }
+ </div>
+
+ <div style="
+ display:flex;
+ gap:12px;
+ margin-top:20px;
+ ">
+   <button
+    id="rollDiceBtn"
+    ${myTurn ? '' : 'disabled'}
+    style="
+    padding:14px 18px;
+    border:none;
+    border-radius:12px;
+    background:${myTurn ? '#8b5cf6' : '#555'};
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+    ">
+    Würfeln
+   </button>
+
+   <button
+    id="endTurnBtn"
+    ${myTurn ? '' : 'disabled'}
+    style="
+    padding:14px 18px;
+    border:none;
+    border-radius:12px;
+    background:${myTurn ? '#16a34a' : '#555'};
+    color:white;
+    font-weight:bold;
+    cursor:pointer;
+    ">
+    Zug beenden
+   </button>
+ </div>
+ `;
+
+ document
+ .getElementById('rollDiceBtn')
+ ?.addEventListener('click',rollDice);
+
+ document
+ .getElementById('endTurnBtn')
+ ?.addEventListener('click',endTurn);
+
+}
+
+async function rollDice(){
+
+ const snap = await gameRef().once('value');
+
+ const state = snap.val();
+
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ) return;
+
+ state.dice =
+ Array.from({length:6})
+ .map(()=>1+Math.floor(Math.random()*6));
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
+}
+
+async function endTurn(){
+
+ const snap = await gameRef().once('value');
+
+ const state = snap.val();
+
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ) return;
+
+ const next =
+ (state.activePlayerIndex + 1)
+ % state.players.length;
+
+ state.activePlayerIndex = next;
+ state.activePlayerId =
+ state.players[next].id;
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
+}
+
+window.addEventListener('load',async ()=>{
+
+ await ensureMainRoom();
+
+ roomRef().on('value',snap=>{
+
+   const room = snap.val();
+
+   if(!room) return;
+
+   renderSingleRoom(room);
+
+ });
+
+ gameRef().on('value',snap=>{
+
+   const state = snap.val();
+
+   if(!state) return;
+
+   renderGame(state);
+
+ });
+
+});
+
+})();
+</script>
+
 </body>
 </html>
