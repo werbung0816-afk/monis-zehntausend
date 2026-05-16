@@ -3414,5 +3414,211 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('START GAME SYNC ACTIVE');
+
+window.currentRoomId = null;
+
+function showStartButton(roomId, room){
+
+ const existing =
+ document.getElementById('hostStartBtn');
+
+ if(existing) existing.remove();
+
+ if(!room) return;
+
+ const isHost =
+ room.host === window.currentPlayerName;
+
+ if(!isHost) return;
+
+ const overlay =
+ document.querySelector('#mpLobbyOverlay h1');
+
+ if(!overlay) return;
+
+ const btn = document.createElement('button');
+
+ btn.id = 'hostStartBtn';
+
+ btn.innerText = 'Spiel starten';
+
+ btn.style.cssText = `
+ margin-left:20px;
+ padding:12px 18px;
+ border:none;
+ border-radius:12px;
+ background:#16a34a;
+ color:white;
+ font-weight:bold;
+ cursor:pointer;
+ `;
+
+ btn.onclick = ()=>{
+
+   firebase.database()
+   .ref('z10_rooms/'+roomId)
+   .update({
+     phase:'playing'
+   });
+
+ };
+
+ overlay.parentNode.appendChild(btn);
+
+}
+
+function watchRoom(roomId){
+
+ firebase.database()
+ .ref('z10_rooms/'+roomId)
+ .on('value',(snap)=>{
+
+   const room = snap.val();
+
+   if(!room) return;
+
+   window.currentRoomId = roomId;
+
+   showStartButton(roomId, room);
+
+   if(room.phase === 'playing'){
+
+     startSharedGame(room);
+
+   }
+
+ });
+
+}
+
+window.startSharedGame = function(room){
+
+ console.log('STARTING SHARED GAME', room);
+
+ const overlay =
+ document.getElementById('mpLobbyOverlay');
+
+ if(overlay){
+   overlay.style.display = 'none';
+ }
+
+ window.gameState = {
+   roomId:room.id,
+   players:room.players || [],
+   activePlayer:0,
+   dice:[1,1,1,1,1,1],
+   selected:[],
+   roundScore:0,
+   totalScores:{},
+   phase:'playing',
+   winner:null
+ };
+
+ alert(
+   'Gemeinsames Spiel gestartet: '
+   + room.name
+ );
+
+};
+
+const oldJoin = window.joinRoom;
+
+window.joinRoom = function(roomId){
+
+ firebase.database()
+ .ref('z10_rooms/'+roomId)
+ .once('value')
+ .then(snap=>{
+
+   const room = snap.val();
+
+   if(!room) return;
+
+   room.players = room.players || [];
+
+   const exists =
+   room.players.find(
+     p=>p.id===window.currentUserId
+   );
+
+   if(!exists){
+
+     room.players.push({
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     });
+
+   }
+
+   firebase.database()
+   .ref('z10_rooms/'+roomId)
+   .set(room);
+
+   watchRoom(roomId);
+
+ });
+
+};
+
+const oldCreate = window.createRoom;
+
+window.createRoom = function(){
+
+ const names = [
+  'Düsseldorf',
+  'Bensheim',
+  'Alsbach',
+  'Griesheim',
+  'Zwingenberg',
+  'Mainz'
+ ];
+
+ const roomName =
+ names[Math.floor(Math.random()*names.length)];
+
+ const maxPlayers =
+ parseInt(
+  document.getElementById('mpMaxPlayers').value
+ );
+
+ const allowAI =
+ document.getElementById('mpAllowAI').checked;
+
+ const roomId =
+ 'room_' + Math.random().toString(36).slice(2,8);
+
+ const room = {
+   id:roomId,
+   name:roomName,
+   host:window.currentPlayerName,
+   maxPlayers,
+   allowAI,
+   phase:'waiting',
+   players:[
+     {
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     }
+   ]
+ };
+
+ firebase.database()
+ .ref('z10_rooms/'+roomId)
+ .set(room);
+
+ watchRoom(roomId);
+
+};
+
+})();
+</script>
+
 </body>
 </html>
