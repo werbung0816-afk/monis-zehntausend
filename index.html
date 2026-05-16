@@ -4629,7 +4629,19 @@ async function ensureMainRoom(){
 
  const snap = await roomRef().once('value');
 
- if(snap.exists()) return;
+ if(snap.exists()){
+   // Ghost-Spieler (Spieler_XXX) aus bestehendem Raum entfernen
+   const existingRoom = snap.val();
+   if(existingRoom && Array.isArray(existingRoom.players)){
+     const clean = existingRoom.players.filter(p=>
+       p && p.name && !/^Spieler_?\d+$/i.test(p.name)
+     );
+     if(clean.length !== existingRoom.players.length){
+       await roomRef().child('players').set(clean);
+     }
+   }
+   return;
+ }
 
  await roomRef().set({
    id:ROOM_ID,
@@ -4820,6 +4832,18 @@ function renderSingleRoom(room){
 }
 
 async function startSharedGameNow(){
+ try{
+
+ // Name aus Eingabefeld holen
+ const nameInp = document.getElementById('mpPlayerNameInput');
+ const typedName = nameInp ? nameInp.value.trim() : '';
+ if(!typedName){
+   if(nameInp){ nameInp.style.borderColor='rgba(239,68,68,.7)'; nameInp.focus(); }
+   alert('Bitte zuerst einen Namen eingeben!');
+   return;
+ }
+ window.currentPlayerName = typedName;
+ localStorage.setItem('z10_name', typedName);
 
  if(!applyLobbyName || !applyLobbyName()) return;
 
@@ -4896,7 +4920,6 @@ async function startSharedGameNow(){
  // Bridge initialisieren → pusht State
  setTimeout(()=>{
    if(window.initBridgeForHost) window.initBridgeForHost();
-   // Setup-Screen verstecken, Spiel anzeigen
    const setup = document.getElementById('setupScreen');
    if(setup) setup.style.display='none';
    const lobby = document.getElementById('mpLobbyOverlay');
@@ -4907,6 +4930,10 @@ async function startSharedGameNow(){
    if(typeof setStatus==='function') setStatus('🎲 Du bist dran — würfle!');
  }, 300);
 
+ }catch(err){
+   console.error('startSharedGameNow failed:',err);
+   alert('Fehler beim Starten: '+err.message);
+ }
 }
 
 function renderGame(state){
