@@ -3074,12 +3074,18 @@ padding:20px;
 border-radius:20px;
 ">
 
-<h2 style="margin-bottom:12px">Spieleinstellungen</h2>
+<h2 style="margin-bottom:16px">Spieleinstellungen</h2>
 
-<label style="font-size:12px;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.5px">SPIELERANZAHL</label>
+<label style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:1px;display:block;margin-bottom:5px">DEIN NAME *</label>
+<input id="mpPlayerNameInput" type="text" maxlength="16" placeholder="Name eingeben…" autocomplete="off"
+  style="width:100%;padding:11px 14px;border-radius:10px;border:2px solid rgba(139,92,246,.5);background:#130f23;color:#fff;font-family:inherit;font-size:15px;outline:none;box-sizing:border-box;margin-bottom:14px"
+  value="">
+<div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:-10px;margin-bottom:10px">⚠ Bitte gib einen Namen ein</div>
+
+<label style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:1px;display:block;margin-bottom:5px">SPIELERANZAHL</label>
 <select id="mpMaxPlayers" style="
-  width:100%;padding:11px 14px;margin:6px 0 14px;
-  border-radius:10px;border:2px solid rgba(139,92,246,.4);
+  width:100%;padding:11px 14px;margin-bottom:14px;
+  border-radius:10px;border:2px solid rgba(139,92,246,.3);
   background:#130f23;color:white;font-family:inherit;font-size:15px;outline:none;cursor:pointer
 ">
   <option value="2">2 Spieler</option>
@@ -3093,21 +3099,26 @@ border-radius:20px;
   <option value="10">10 Spieler</option>
 </select>
 
-<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.6);cursor:pointer">
+<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:rgba(255,255,255,.6);cursor:pointer;margin-bottom:16px">
   <input type="checkbox" id="mpAllowAI" checked style="width:16px;height:16px;cursor:pointer">
   KI-Spieler auffüllen
 </label>
 
 <button id="createRoomBtn" style="display:none">Raum erstellen</button>
 
+<div style="background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2);border-radius:10px;padding:12px;font-size:12px;color:rgba(255,255,255,.5);line-height:1.6;margin-bottom:12px">
+  <b style="color:rgba(139,92,246,.9)">So geht's:</b><br>
+  1. Name eingeben<br>
+  2. Rechts auf <b>Beitreten</b> klicken<br>
+  3. Als Host: <b>Spiel starten</b> klicken
+</div>
+
 <button onclick="forceReset()" style="
-  width:100%;margin-top:16px;padding:10px;border-radius:10px;
-  border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);
-  color:rgba(239,68,68,.8);font-family:inherit;font-size:13px;
-  font-weight:600;cursor:pointer;transition:all .2s
-" onmouseover="this.style.background='rgba(239,68,68,.18)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
-  🗑 Raum &amp; Spiel zurücksetzen
-</button>
+  width:100%;padding:9px;border-radius:10px;
+  border:1px solid rgba(239,68,68,.3);background:rgba(239,68,68,.06);
+  color:rgba(239,68,68,.7);font-family:inherit;font-size:12px;
+  font-weight:600;cursor:pointer
+">🗑 Raum &amp; Spiel zurücksetzen</button>
 
 </div>
 
@@ -3302,11 +3313,15 @@ const db = firebase.database();
 window.currentPlayerName =
 localStorage.getItem('z10_name') || '';
 
-// Name in Lobby-Input eintragen sobald DOM bereit
-setTimeout(()=>{
+// Name in Lobby-Input eintragen sobald DOM bereit (mehrfach versuchen)
+function prefillName(){
   const inp = document.getElementById('mpPlayerNameInput');
-  if(inp && window.currentPlayerName) inp.value = window.currentPlayerName;
-}, 500);
+  const saved = localStorage.getItem('z10_name')||'';
+  if(inp && saved) inp.value = saved;
+}
+setTimeout(prefillName, 300);
+setTimeout(prefillName, 1000);
+setTimeout(prefillName, 2500);
 
 function roomsRef(){
  return db.ref('z10_rooms');
