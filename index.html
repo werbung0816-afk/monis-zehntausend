@@ -4003,5 +4003,116 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('STAGE7 LEGACY AUTOBOOT BLOCK ACTIVE');
+
+window.__MULTIPLAYER_RUNNING__ = false;
+
+window.stopLegacyBoot = function(){
+
+ if(!window.__MULTIPLAYER_RUNNING__) return;
+
+ console.log('Blocking legacy autoboot');
+
+ const blockedNames = [
+  'init',
+  'boot',
+  'bootGame',
+  'showStartScreen',
+  'initMenu',
+  'startMenu',
+  'setupSinglePlayer',
+  'startLocalGame'
+ ];
+
+ blockedNames.forEach(name=>{
+
+   if(typeof window[name] === 'function'){
+
+     const old = window[name];
+
+     window[name] = function(){
+
+       if(window.__MULTIPLAYER_RUNNING__){
+         console.warn('Blocked legacy:', name);
+         return;
+       }
+
+       return old.apply(this, arguments);
+
+     };
+
+   }
+
+ });
+
+};
+
+const oldAdd =
+document.addEventListener.bind(document);
+
+document.addEventListener = function(type, listener, opts){
+
+ if(
+   window.__MULTIPLAYER_RUNNING__
+   &&
+   type === 'DOMContentLoaded'
+ ){
+   console.warn('Blocked DOMContentLoaded listener');
+   return;
+ }
+
+ return oldAdd(type, listener, opts);
+
+};
+
+window.addEventListener('load',()=>{
+
+ window.stopLegacyBoot();
+
+});
+
+const oldStartShared =
+window.startSharedGame;
+
+window.startSharedGame = function(room){
+
+ window.__MULTIPLAYER_RUNNING__ = true;
+
+ window.stopLegacyBoot();
+
+ const oldOverlay =
+ document.querySelectorAll(
+  '[class*="menu"],[id*="menu"],[class*="start"],[id*="start"]'
+ );
+
+ oldOverlay.forEach(el=>{
+
+   const text =
+   (el.innerText || '').toLowerCase();
+
+   if(
+    text.includes('2 spieler')
+    || text.includes('3 spieler')
+    || text.includes('4 spieler')
+    || text.includes('einzelspieler')
+   ){
+     el.style.display='none';
+   }
+
+ });
+
+ if(typeof oldStartShared === 'function'){
+   oldStartShared(room);
+ }
+
+};
+
+})();
+</script>
+
 </body>
 </html>
