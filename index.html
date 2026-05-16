@@ -4966,5 +4966,308 @@ window.addEventListener('load',async ()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('FINAL STAGE11 SHARED PREMIUM RENDER');
+
+if(!window.firebase) return;
+
+const db = firebase.database();
+const ROOM_ID = 'duesseldorf';
+
+window.gameState = null;
+
+function gameRef(){
+ return db.ref('z10_games/' + ROOM_ID);
+}
+
+function ensurePremiumOverlay(){
+
+ let overlay =
+ document.getElementById('premiumSharedOverlay');
+
+ if(overlay) return overlay;
+
+ overlay = document.createElement('div');
+
+ overlay.id = 'premiumSharedOverlay';
+
+ overlay.style.cssText = `
+ position:fixed;
+ inset:0;
+ background:
+ radial-gradient(circle at top,#312e81,#0f172a);
+ z-index:9999999;
+ color:white;
+ font-family:Arial;
+ overflow:auto;
+ padding:24px;
+ display:none;
+ `;
+
+ document.body.appendChild(overlay);
+
+ return overlay;
+}
+
+function renderPremiumShared(state){
+
+ const overlay = ensurePremiumOverlay();
+
+ overlay.style.display = 'block';
+
+ window.gameState = state;
+
+ const active =
+ (state.players || []).find(
+  p=>p.id===state.activePlayerId
+ );
+
+ const myTurn =
+ state.activePlayerId === window.currentUserId;
+
+ overlay.innerHTML = `
+ <div style="
+ display:flex;
+ justify-content:space-between;
+ align-items:center;
+ flex-wrap:wrap;
+ gap:20px;
+ ">
+
+   <div>
+     <h1 style="
+     margin:0;
+     font-size:38px;
+     ">
+     🎲 Düsseldorf Multiplayer
+     </h1>
+
+     <div style="
+     opacity:.8;
+     margin-top:10px;
+     ">
+     Aktiver Spieler:
+     <b>${active?.name || '-'}</b>
+     </div>
+   </div>
+
+   <div style="
+   background:rgba(255,255,255,.08);
+   padding:14px 18px;
+   border-radius:18px;
+   ">
+   Phase: ${state.phase}
+   </div>
+
+ </div>
+
+ <div style="
+ margin-top:28px;
+ display:grid;
+ grid-template-columns:
+ repeat(auto-fit,minmax(220px,1fr));
+ gap:16px;
+ ">
+
+ ${(state.players || []).map(p=>`
+
+   <div style="
+   background:${
+     p.id===state.activePlayerId
+     ? 'rgba(139,92,246,.45)'
+     : 'rgba(255,255,255,.06)'
+   };
+   border-radius:20px;
+   padding:18px;
+   border:2px solid rgba(255,255,255,.08);
+   ">
+
+     <div style="
+     font-size:22px;
+     font-weight:bold;
+     ">
+     ${p.name}
+     </div>
+
+     <div style="
+     margin-top:10px;
+     opacity:.8;
+     ">
+     Punkte:
+     ${
+       state.totalScores?.[p.id] || 0
+     }
+     </div>
+
+   </div>
+
+ `).join('')}
+
+ </div>
+
+ <div style="
+ margin-top:34px;
+ display:flex;
+ gap:18px;
+ flex-wrap:wrap;
+ justify-content:center;
+ ">
+
+ ${(state.dice || []).map(v=>`
+
+   <div style="
+   width:95px;
+   height:95px;
+   border-radius:22px;
+   background:white;
+   color:black;
+   display:flex;
+   align-items:center;
+   justify-content:center;
+   font-size:46px;
+   font-weight:bold;
+   box-shadow:0 10px 30px rgba(0,0,0,.35);
+   ">
+   ${v}
+   </div>
+
+ `).join('')}
+
+ </div>
+
+ <div style="
+ margin-top:40px;
+ display:flex;
+ gap:16px;
+ justify-content:center;
+ flex-wrap:wrap;
+ ">
+
+   <button
+    id="sharedRollBtn"
+    ${myTurn ? '' : 'disabled'}
+    style="
+    padding:16px 22px;
+    border:none;
+    border-radius:16px;
+    background:${myTurn ? '#8b5cf6' : '#555'};
+    color:white;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    ">
+    Würfeln
+   </button>
+
+   <button
+    id="sharedEndBtn"
+    ${myTurn ? '' : 'disabled'}
+    style="
+    padding:16px 22px;
+    border:none;
+    border-radius:16px;
+    background:${myTurn ? '#16a34a' : '#555'};
+    color:white;
+    font-size:18px;
+    font-weight:bold;
+    cursor:pointer;
+    ">
+    Zug beenden
+   </button>
+
+ </div>
+ `;
+
+ document
+ .getElementById('sharedRollBtn')
+ ?.addEventListener('click',sharedRollDice);
+
+ document
+ .getElementById('sharedEndBtn')
+ ?.addEventListener('click',sharedEndTurn);
+
+}
+
+async function sharedRollDice(){
+
+ const snap = await gameRef().once('value');
+ const state = snap.val();
+
+ if(!state) return;
+
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ){
+   return;
+ }
+
+ state.dice =
+ Array.from({length:6})
+ .map(()=>1 + Math.floor(Math.random()*6));
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
+}
+
+async function sharedEndTurn(){
+
+ const snap = await gameRef().once('value');
+ const state = snap.val();
+
+ if(!state) return;
+
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ){
+   return;
+ }
+
+ const next =
+ (state.activePlayerIndex + 1)
+ % state.players.length;
+
+ state.activePlayerIndex = next;
+
+ state.activePlayerId =
+ state.players[next].id;
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
+}
+
+function watchSharedGame(){
+
+ gameRef().on('value',snap=>{
+
+   const state = snap.val();
+
+   if(!state) return;
+
+   if(state.phase !== 'playing') return;
+
+   renderPremiumShared(state);
+
+ });
+
+}
+
+window.addEventListener('load',()=>{
+
+ watchSharedGame();
+
+});
+
+})();
+</script>
+
 </body>
 </html>
