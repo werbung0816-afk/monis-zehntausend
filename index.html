@@ -1041,77 +1041,102 @@ console.log('Z10 Multiplayer Bootstrap Active');
 
 
 <style id="responsive-overrides">
-/* ── RESPONSIVE DESIGN ── */
+/* ── RESPONSIVE DESIGN — MONI'S ZEHNTAUSEND ── */
+
+/* Tablet (≤900px) */
 @media (max-width: 900px){
-  /* Layout: Spalte statt Zeile */
-  .gameLayout { flex-direction: column !important; }
-  
-  /* Panels nebeneinander oben */
-  .panel { 
-    width: 100% !important; 
-    max-width: 100% !important;
-    box-sizing: border-box !important;
+  body { padding: 10px !important; }
+
+  /* 3-spaltig → 1-spaltig */
+  .layout {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
   }
-  
-  /* Spieler-Panel: horizontal scrollen */
+
+  /* Logo */
+  .logo h1 { font-size: clamp(36px, 8vw, 56px) !important; line-height: 1 !important; }
+  .logo p  { font-size: clamp(14px, 3vw, 20px) !important; margin-top: 4px !important; }
+
+  /* Spieler-Liste: horizontal */
   #players {
     display: flex !important;
-    flex-direction: row !important;
     flex-wrap: wrap !important;
-    gap: 6px !important;
+    gap: 8px !important;
   }
-  
-  /* Einzelner Spieler kompakter */
   .player {
-    flex: 1 !important;
-    min-width: 80px !important;
-    max-width: 140px !important;
-    padding: 6px 8px !important;
+    flex: 1 1 120px !important;
+    max-width: 180px !important;
+    padding: 10px 12px !important;
+    margin-bottom: 0 !important;
   }
-  
+  .player .score { font-size: clamp(22px, 5vw, 32px) !important; }
+  .player .name, .playerName { font-size: clamp(12px, 2.5vw, 16px) !important; }
+
+  /* Stats-Zahlen */
+  .stat .v { font-size: clamp(28px, 7vw, 44px) !important; }
+  .stat { padding: 12px !important; }
+
+  /* Würfelbecher */
+  .cup { width: 90px !important; height: 150px !important; }
+
   /* Würfelbereich */
-  .diceWrap { 
-    min-height: 120px !important; 
-    padding: 10px !important;
+  .diceWrap {
+    min-height: 180px !important;
+    padding: 14px !important;
+    gap: 12px !important;
+    margin: 14px 0 !important;
   }
-  
+
   /* Würfel */
-  .die { 
-    width: clamp(50px, 13vw, 80px) !important; 
-    height: clamp(50px, 13vw, 80px) !important; 
-    font-size: clamp(22px, 6vw, 36px) !important;
+  .die {
+    width: clamp(60px, 14vw, 88px) !important;
+    height: clamp(60px, 14vw, 88px) !important;
+    font-size: clamp(28px, 7vw, 44px) !important;
+    border-radius: 18px !important;
   }
-  
-  /* Action Buttons */
+
+  /* Buttons */
   .roll, .bank, .end {
-    padding: 12px 8px !important;
-    font-size: clamp(12px, 3vw, 15px) !important;
+    padding: 12px 10px !important;
+    font-size: clamp(12px, 2.8vw, 16px) !important;
+    border-radius: 16px !important;
   }
+
+  /* Score-Tabelle */
+  .scoreTable div { font-size: clamp(12px, 2.5vw, 15px) !important; }
+
+  /* Panel padding */
+  .panel { padding: 14px !important; border-radius: 18px !important; }
 }
 
-@media (max-width: 600px){
-  .player {
-    min-width: 65px !important;
-    max-width: 100px !important;
-    padding: 4px 6px !important;
-    font-size: 12px !important;
+/* Handy (≤480px) */
+@media (max-width: 480px){
+  body { padding: 6px !important; }
+
+  .logo h1 { font-size: clamp(28px, 9vw, 40px) !important; }
+  .logo p  { font-size: 13px !important; }
+
+  .player { flex: 1 1 90px !important; max-width: 140px !important; padding: 7px 9px !important; }
+  .player .score { font-size: clamp(18px, 6vw, 26px) !important; }
+
+  .stat .v { font-size: clamp(24px, 8vw, 34px) !important; }
+
+  .diceWrap { min-height: 130px !important; padding: 10px !important; gap: 8px !important; }
+
+  .die {
+    width: clamp(52px, 16vw, 72px) !important;
+    height: clamp(52px, 16vw, 72px) !important;
+    font-size: clamp(22px, 8vw, 34px) !important;
+    border-radius: 14px !important;
   }
-  
-  .die { 
-    width: clamp(42px, 15vw, 62px) !important; 
-    height: clamp(42px, 15vw, 62px) !important; 
-    font-size: clamp(18px, 7vw, 28px) !important;
-  }
-  
-  .diceWrap { min-height: 100px !important; padding: 8px !important; }
-  
+
   .roll, .bank, .end {
-    font-size: clamp(11px, 3.5vw, 13px) !important;
-    padding: 10px 4px !important;
+    padding: 10px 6px !important;
+    font-size: clamp(11px, 3.5vw, 14px) !important;
   }
-  
-  /* Punkte-Log kleiner */
-  #gameLog, .logEntry { font-size: 11px !important; }
+
+  .panel { padding: 10px !important; border-radius: 14px !important; }
+  .cup { display: none !important; }
 }
 </style>
 </head>
