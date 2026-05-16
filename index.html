@@ -958,6 +958,13 @@ top:10px;
 }
 </style>
 
+
+<script>
+window.addEventListener("error",(e)=>{
+ console.log("SAFE MODE:",e.message);
+});
+</script>
+
 </head>
 <body><div id="quick10Counter">1 / 10</div>
 
@@ -2314,8 +2321,7 @@ renderStage(stage);
 
 clearInterval(victoryTimer);
 
-victoryTimer = /* legacy interval disabled */
-return;
+victoryTimer = 
 
 }
 
@@ -2399,7 +2405,6 @@ if(window.gameMode === 'quick10'){
 
 if(originalNextPlayer){
     return originalNextPlayer.apply(this, arguments);
-}
 }
 </script>
 
