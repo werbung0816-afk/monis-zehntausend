@@ -2118,16 +2118,28 @@ nextPlayer("⚠️ KI-Fehler.");
 
 function restartGame(){
 if(!confirm("Möchtest du wirklich neu starten?")) return;
-// Firebase-State löschen dann neu laden
-try{
-  const db = window.firebase ? firebase.database() : null;
-  if(db){
-    db.ref('z10_games/duesseldorf').remove()
-      .then(()=>location.reload())
-      .catch(()=>location.reload());
-  } else { location.reload(); }
-} catch(e){ location.reload(); }
+const cleanup = () => {
+  try{
+    const db = firebase.database();
+    Promise.all([
+      db.ref('z10_games/duesseldorf').remove(),
+      db.ref('z10_rooms/duesseldorf').remove()
+    ]).finally(()=>location.reload());
+  } catch(e){ location.reload(); }
+};
+cleanup();
 }
+
+// Notfall-Reset: auch via Konsole aufrufbar
+window.forceReset = function(){
+  try{
+    const db = firebase.database();
+    Promise.all([
+      db.ref('z10_games').remove(),
+      db.ref('z10_rooms').remove()
+    ]).finally(()=>location.reload());
+  } catch(e){ location.reload(); }
+};
 
 function launchConfetti(){
 const canvas=document.createElement('canvas');
@@ -3042,6 +3054,15 @@ border-radius:20px;
 </label>
 
 <button id="createRoomBtn" style="display:none">Raum erstellen</button>
+
+<button onclick="forceReset()" style="
+  width:100%;margin-top:16px;padding:10px;border-radius:10px;
+  border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.08);
+  color:rgba(239,68,68,.8);font-family:inherit;font-size:13px;
+  font-weight:600;cursor:pointer;transition:all .2s
+" onmouseover="this.style.background='rgba(239,68,68,.18)'" onmouseout="this.style.background='rgba(239,68,68,.08)'">
+  🗑 Raum &amp; Spiel zurücksetzen
+</button>
 
 </div>
 
@@ -5257,6 +5278,27 @@ window.getNextFreeRoom = async function(){
   }
   return {id: ROOM_NAME_POOL[0].toLowerCase(), name: ROOM_NAME_POOL[0]};
 };
+
+/* ── 8. Auto-Reset bei hängendem alten Spielstand ── */
+window.addEventListener('load', ()=>{
+  setTimeout(async ()=>{
+    if(window._bridgeActive) return; // Aktives Spiel, nicht stören
+    try{
+      const db = firebase.database();
+      const snap = await db.ref('z10_games/duesseldorf').once('value');
+      const gs = snap.val();
+      if(gs && (gs.phase==='playing'||gs.phase==='gameover')){
+        console.warn('[Bridge] Alter Spielstand gefunden — wird automatisch gelöscht');
+        await db.ref('z10_games/duesseldorf').remove();
+      }
+      const rSnap = await db.ref('z10_rooms/duesseldorf').once('value');
+      const room = rSnap.val();
+      if(room && room.phase==='playing'){
+        await db.ref('z10_rooms/duesseldorf').update({phase:'waiting'});
+      }
+    }catch(e){}
+  }, 2000);
+});
 
 console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
