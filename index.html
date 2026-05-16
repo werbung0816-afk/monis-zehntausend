@@ -3857,5 +3857,151 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('STAGE6 LEGACY START BLOCK ACTIVE');
+
+window.__MULTIPLAYER_MODE__ = true;
+
+function killLegacyStartButtons(){
+
+ const selectors = [
+  '#startBtn',
+  '.startBtn',
+  '[onclick*="startGame"]',
+  '[onclick*="startLocal"]',
+  '[onclick*="showPlayer"]'
+ ];
+
+ selectors.forEach(sel=>{
+
+   document.querySelectorAll(sel)
+   .forEach(el=>{
+
+     el.onclick = null;
+
+     el.addEventListener(
+      'click',
+      e=>{
+        if(window.__MULTIPLAYER_MODE__){
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      },
+      true
+     );
+
+   });
+
+ });
+
+}
+
+function hideLegacyLobby(){
+
+ const texts = [
+  '2 Spieler',
+  '3 Spieler',
+  '4 Spieler'
+ ];
+
+ document.querySelectorAll('*')
+ .forEach(el=>{
+
+   if(
+    texts.includes(
+      el.textContent?.trim()
+    )
+   ){
+
+     const parent =
+     el.closest('div');
+
+     if(parent){
+
+       parent.style.display='none';
+
+     }
+
+   }
+
+ });
+
+}
+
+window.startSharedGame = function(room){
+
+ console.log('MULTIPLAYER START ACTIVE', room);
+
+ window.__MULTIPLAYER_RUNNING__ = true;
+
+ killLegacyStartButtons();
+
+ hideLegacyLobby();
+
+ const overlay =
+ document.getElementById('mpLobbyOverlay');
+
+ if(overlay){
+   overlay.style.display='none';
+ }
+
+ window.gameState = {
+   roomId:room.id,
+   players:room.players || [],
+   activePlayer:0,
+   dice:[1,1,1,1,1,1],
+   selected:[],
+   roundScore:0,
+   totalScores:{},
+   phase:'playing',
+   winner:null
+ };
+
+ console.log(
+  'Shared GameState',
+  window.gameState
+ );
+
+ const badge =
+ document.createElement('div');
+
+ badge.innerHTML =
+ '🎲 MULTIPLAYER AKTIV';
+
+ badge.style.cssText = `
+ position:fixed;
+ top:10px;
+ right:10px;
+ z-index:999999;
+ background:#16a34a;
+ color:white;
+ padding:10px 14px;
+ border-radius:12px;
+ font-weight:bold;
+ font-family:Arial;
+ box-shadow:0 8px 20px rgba(0,0,0,.4);
+ `;
+
+ document.body.appendChild(badge);
+
+};
+
+window.addEventListener('load',()=>{
+
+ setTimeout(()=>{
+
+   killLegacyStartButtons();
+
+ },1000);
+
+});
+
+})();
+</script>
+
 </body>
 </html>
