@@ -5082,13 +5082,9 @@ window.hydratePremiumState = function(state){
   if(state.phase !== 'playing') return;
   if(!state.players || state.players.length === 0) return;
 
-  // Bridge automatisch aktivieren wenn Spiel läuft (für Gäste)
-  if(!window._bridgeActive){
-    // Nur aktivieren wenn wir in der Lobby waren (mpLobbyOverlay existiert)
-    const inLobby = document.getElementById('mpLobbyOverlay');
-    if(!inLobby) return; // Rein lokales Spiel, nicht überschreiben
-    window._bridgeActive = true;
-  }
+  // Bridge automatisch aktivieren wenn Gast über Lobby beitritt
+  // NICHT automatisch beim Seitenladen feuern
+  if(!window._bridgeActive) return;
 
   // Veraltete Updates ignorieren
   if(state.updatedAt && state.updatedAt <= _lastTs) return;
@@ -5200,30 +5196,29 @@ window.addEventListener('load', ()=>{
 const _origSSGN = window.startSharedGameNow;
 window.startSharedGameNow_orig = _origSSGN;
 
-document.addEventListener('click', e=>{
-  const btn = e.target.closest('#startMainGameBtn');
-  if(!btn) return;
-  // Bridge für Host starten nach kurzem Delay (Setup muss fertig sein)
-  setTimeout(()=>{
-    if(typeof players !== 'undefined' && players.length > 0){
-      window.initBridgeForHost();
-    }
-  }, 800);
-});
-
-// Auch auf den lokalen "Spiel starten" Button hören (setupScreen)
+/* ── 7. Bridge-Aktivierung für Gäste: Beitreten-Button abfangen ── */
 document.addEventListener('click', e=>{
   const btn = e.target.closest('button');
   if(!btn) return;
   const txt = (btn.innerText||'').trim();
-  if(txt === 'Spiel starten' && document.getElementById('setupScreen')){
-    // Solo-Modus: Bridge inaktiv lassen (Firebase nicht nötig)
-    // Nur aktivieren wenn Multiplayer-Lobby aktiv ist
-    if(document.getElementById('mpLobbyOverlay')?.style.display !== 'none'){
-      setTimeout(()=>window.initBridgeForHost(), 600);
-    }
+
+  // Gast tritt bei → Bridge aktivieren
+  if(txt === 'Beitreten' || btn.id === 'joinMainRoomBtn'){
+    console.log('[Bridge] Gast tritt bei → Bridge aktiviert');
+    window._bridgeActive = true;
   }
-});
+
+  // Host startet Spiel → Bridge aktivieren
+  if(txt === 'Spiel starten' || btn.id === 'startMainGameBtn'){
+    console.log('[Bridge] Host startet → Bridge aktiviert');
+    window._bridgeActive = true;
+    setTimeout(()=>{
+      if(typeof players !== 'undefined' && players.length > 0){
+        window.initBridgeForHost();
+      }
+    }, 800);
+  }
+}, true); // capture phase = vor allen anderen Listenern
 
 /* ── 6. Raum-Pool: Nur aktive Räume aus bekanntem Pool anzeigen ── */
 // Pool bekannter Raumnamen — werden nur angelegt wenn wirklich genutzt
