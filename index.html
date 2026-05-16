@@ -3083,7 +3083,7 @@ border-radius:20px;
 <div id="mpNameError" style="display:none;color:#f87171;font-size:12px;margin-top:-10px;margin-bottom:10px">⚠ Bitte gib einen Namen ein</div>
 
 <label style="font-size:11px;font-weight:700;color:rgba(255,255,255,.4);letter-spacing:1px;display:block;margin-bottom:5px">SPIELERANZAHL</label>
-<select id="mpMaxPlayers" style="
+<select id="mpMaxPlayers" onchange="updateRoomMaxPlayers(this.value)" style="
   width:100%;padding:11px 14px;margin-bottom:14px;
   border-radius:10px;border:2px solid rgba(139,92,246,.3);
   background:#130f23;color:white;font-family:inherit;font-size:15px;outline:none;cursor:pointer
@@ -5374,6 +5374,40 @@ setTimeout(async ()=>{
     }
   }catch(e){}
 },1000);
+
+
+/* ── Raum-Spieleranzahl live aktualisieren ── */
+window.updateRoomMaxPlayers = async function(val){
+  const n = parseInt(val);
+  if(!n||n<2||n>10) return;
+  try{
+    const db = firebase.database();
+    await db.ref('z10_rooms/duesseldorf').update({maxPlayers:n});
+    // Raumliste neu rendern
+    const snap = await db.ref('z10_rooms/duesseldorf').once('value');
+    const room = snap.val();
+    if(room && typeof renderSingleRoom === 'function') renderSingleRoom(room);
+    else if(typeof renderRooms === 'function'){
+      const allSnap = await db.ref('z10_rooms').once('value');
+      const all = allSnap.val()||{};
+      renderRooms(Object.values(all));
+    }
+    console.log('[Bridge] Spieleranzahl auf',n,'gesetzt');
+  }catch(e){ console.warn('updateRoomMaxPlayers:',e); }
+};
+
+/* ── Dropdown beim Laden mit Firebase-Wert synchronisieren ── */
+window.addEventListener('load', ()=>{
+  setTimeout(async()=>{
+    try{
+      const db = firebase.database();
+      const snap = await db.ref('z10_rooms/duesseldorf/maxPlayers').once('value');
+      const n = snap.val();
+      const sel = document.getElementById('mpMaxPlayers');
+      if(sel && n){ sel.value = String(n); }
+    }catch(e){}
+  }, 1500);
+});
 
 console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
