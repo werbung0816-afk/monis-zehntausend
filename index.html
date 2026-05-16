@@ -3200,5 +3200,219 @@ window.addEventListener('load',()=>{
 })();
 </script>
 
+
+<script>
+(function(){
+
+console.log('FIREBASE ROOM SYNC ACTIVE');
+
+const firebaseConfig = {
+apiKey:"AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
+authDomain:"romme-hand.firebaseapp.com",
+databaseURL:"https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app",
+projectId:"romme-hand",
+storageBucket:"romme-hand.firebasestorage.app",
+messagingSenderId:"848283747928",
+appId:"1:848283747928:web:5ebdf681451ea87bdac2d"
+};
+
+if(!firebase.apps.length){
+ firebase.initializeApp(firebaseConfig);
+}
+
+const db = firebase.database();
+
+window.currentPlayerName =
+localStorage.getItem('z10_name')
+|| ('Spieler_'+Math.floor(Math.random()*1000));
+
+function roomsRef(){
+ return db.ref('z10_rooms');
+}
+
+function renderRooms(rooms){
+
+ const container =
+ document.getElementById('publicRoomList');
+
+ if(!container) return;
+
+ container.innerHTML = '';
+
+ const list = Object.entries(rooms || {});
+
+ if(list.length === 0){
+
+   container.innerHTML = `
+   <div style="
+   padding:20px;
+   border-radius:16px;
+   background:#171129;
+   ">
+   Keine offenen Räume
+   </div>
+   `;
+
+   return;
+ }
+
+ list.forEach(([roomId,room])=>{
+
+   const div = document.createElement('div');
+
+   div.style.cssText = `
+   background:#171129;
+   border-radius:16px;
+   padding:16px;
+   margin-bottom:12px;
+   display:flex;
+   justify-content:space-between;
+   align-items:center;
+   gap:20px;
+   `;
+
+   div.innerHTML = `
+   <div>
+     <div style="font-size:20px;font-weight:bold">
+       ${room.name || 'Zehntausend Lobby'}
+     </div>
+
+     <div style="opacity:.7;margin-top:6px">
+       ${(room.players||[]).length}/${room.maxPlayers} Spieler
+     </div>
+   </div>
+
+   <button
+     data-room="${roomId}"
+     class="joinRoomBtn"
+     style="
+     padding:12px 16px;
+     border:none;
+     border-radius:12px;
+     background:#8b5cf6;
+     color:white;
+     font-weight:bold;
+     cursor:pointer;
+     "
+   >
+   Beitreten
+   </button>
+   `;
+
+   container.appendChild(div);
+
+ });
+
+ document.querySelectorAll('.joinRoomBtn')
+ .forEach(btn=>{
+
+   btn.onclick = ()=>{
+
+     const roomId =
+     btn.getAttribute('data-room');
+
+     joinRoom(roomId);
+
+   };
+
+ });
+
+}
+
+function subscribeRooms(){
+
+ roomsRef().on('value',(snap)=>{
+
+   const rooms = snap.val() || {};
+
+   renderRooms(rooms);
+
+ });
+
+}
+
+function createRoom(){
+
+ const maxPlayers =
+ parseInt(
+  document.getElementById('mpMaxPlayers').value
+ );
+
+ const allowAI =
+ document.getElementById('mpAllowAI').checked;
+
+ const roomId =
+ 'room_' + Math.random().toString(36).slice(2,8);
+
+ const room = {
+   id:roomId,
+   name:'Zehntausend Lobby',
+   host:window.currentPlayerName,
+   maxPlayers,
+   allowAI,
+   phase:'waiting',
+   players:[
+     {
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     }
+   ]
+ };
+
+ roomsRef().child(roomId).set(room);
+
+}
+
+function joinRoom(roomId){
+
+ roomsRef().child(roomId)
+ .once('value')
+ .then(snap=>{
+
+   const room = snap.val();
+
+   if(!room) return;
+
+   room.players = room.players || [];
+
+   const exists =
+   room.players.find(
+    p=>p.id===window.currentUserId
+   );
+
+   if(!exists){
+
+     room.players.push({
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     });
+
+   }
+
+   roomsRef().child(roomId).set(room);
+
+   alert(
+    'Beigetreten: '
+    + room.name
+   );
+
+ });
+
+}
+
+window.addEventListener('load',()=>{
+
+ document.getElementById('createRoomBtn')
+ ?.addEventListener('click',createRoom);
+
+ subscribeRooms();
+
+});
+
+})();
+</script>
+
 </body>
 </html>
