@@ -2881,7 +2881,7 @@ const originalNextPlayer = window.nextPlayer;
 window.nextPlayer = function(){
 
 if(window.gameMode === 'quick10'){
-    if(typeof currentPlayerIndex !== 'undefined' && currentPlayerIndex === 0){
+    if(typeof activePlayerIndex !== 'undefined' && activePlayerIndex === 0){
         window.currentRound++;
     }
 
@@ -5906,6 +5906,94 @@ window.addEventListener('load', ()=>{
 
 console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
+})();
+</script>
+
+
+<script>
+(function(){
+
+window.Z10 = window.Z10 || {};
+
+window.Z10.normalizePlayers = function(players){
+  if(!players) return {};
+  if(Array.isArray(players)){
+    const obj = {};
+    players.filter(Boolean).forEach(p=>{
+      if(p && p.id) obj[p.id] = p;
+    });
+    return obj;
+  }
+  return players;
+};
+
+window.Z10.playersArray = function(players){
+  return Object.values(window.Z10.normalizePlayers(players));
+};
+
+window.Z10.localPlayerId = localStorage.getItem('z10_player_id');
+
+window.Z10.ensurePlayerIdentity = function(name){
+  const id = localStorage.getItem('z10_player_id');
+  const playerName = name || localStorage.getItem('z10_player_name') || 'Spieler';
+
+  return {
+    id,
+    name: playerName
+  };
+};
+
+window.Z10.mergePlayerIntoRoom = function(room){
+  room = room || {};
+
+  room.players = window.Z10.normalizePlayers(room.players);
+
+  const me = window.Z10.ensurePlayerIdentity();
+
+  room.players[me.id] = {
+    ...(room.players[me.id] || {}),
+    ...me,
+    online: true,
+    lastSeen: Date.now()
+  };
+
+  if(!room.activePlayerId){
+    room.activePlayerId = me.id;
+  }
+
+  return room;
+};
+
+window.Z10.isMyTurn = function(gameState){
+  if(!gameState) return false;
+  return gameState.activePlayerId === window.Z10.localPlayerId;
+};
+
+console.log('[Z10] playerId multiplayer bridge active');
+
+})();
+</script>
+
+
+<script>
+(function(){
+  window.Z10 = window.Z10 || {};
+
+  window.Z10.resolveActivePlayer = function(gameState){
+    if(!gameState) return null;
+
+    const players = window.Z10.playersArray(gameState.players);
+
+    if(gameState.activePlayerId){
+      return players.find(p=>p.id===gameState.activePlayerId) || null;
+    }
+
+    if(typeof gameState.activePlayerIndex === 'number'){
+      return players[gameState.activePlayerIndex] || null;
+    }
+
+    return players[0] || null;
+  };
 })();
 </script>
 
