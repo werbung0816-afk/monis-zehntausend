@@ -1378,6 +1378,40 @@ function normalizePlayersArray(players){
 
 
 
+
+<script>
+window.ensureFirebaseReady = function(){
+
+  try{
+
+    if(window.firebase && firebase.apps && firebase.apps.length){
+      return firebase.app();
+    }
+
+    const firebaseConfig = {
+      apiKey: "demo",
+      authDomain: "demo.firebaseapp.com",
+      databaseURL: "https://demo-default-rtdb.firebaseio.com",
+      projectId: "demo",
+      storageBucket: "demo.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:demo"
+    };
+
+    if(window.firebase && firebase.initializeApp){
+      firebase.initializeApp(firebaseConfig);
+      console.log('[Firebase] initialized');
+      return firebase.app();
+    }
+
+  }catch(err){
+    console.error('[Firebase bootstrap error]', err);
+  }
+
+  return null;
+};
+</script>
+
 </head>
 <body>
 <div id="backToLobbyBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:rgba(10,6,20,.97);backdrop-filter:blur(10px);padding:8px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(139,92,246,.3)">
@@ -3887,7 +3921,15 @@ async function createSharedRoom(){
       }
     };
 
+    
+    window.ensureFirebaseReady();
+
+    if(!window.firebase || !firebase.database){
+      throw new Error('Firebase nicht verfügbar');
+    }
+
     await firebase.database()
+    
       .ref('z10_games/duesseldorf')
       .set(roomState);
 
