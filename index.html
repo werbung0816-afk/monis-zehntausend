@@ -1,24 +1,105 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+
 <script>
-/* STARTUP: Nur expliziter forceReset löscht den Spielstand.
-   Reload während eines laufenden Spiels = Reconnect, KEIN Delete. */
+window.gameState = {
+  players: {},
+  activePlayerId: null,
+  dice: [],
+  scores: {},
+  round: 1,
+  phase: 'lobby',
+  settings: {
+    mode: 'full'
+  }
+};
+
 (function(){
-  const needsReset = localStorage.getItem('z10_force_reset') === '1';
-  if(!needsReset) return; // Kein Cleanup bei normalem Reload
 
-  const DB = 'https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app';
-  const GAME_PATH = DB + '/z10_games/duesseldorf.json';
-  const ROOM_PATH = DB + '/z10_rooms/duesseldorf.json';
+  let id = localStorage.getItem('z10_player_id');
 
-  console.log('[STARTUP] forceReset erkannt — lösche Spielstand');
-  localStorage.removeItem('z10_force_reset');
-  Promise.all([
-    fetch(GAME_PATH, {method:'DELETE'}),
-    fetch(ROOM_PATH, {method:'DELETE'})
-  ]).catch(()=>{});
+  if(!id){
+    id = 'p_' + Math.random().toString(36).slice(2,10);
+    localStorage.setItem('z10_player_id', id);
+  }
+
+  window.localPlayerId = id;
+
 })();
+
+window.MultiplayerStore = {
+
+  roomPath: 'z10_games/duesseldorf',
+
+  subscribe(){
+
+    if(!window.firebase || !firebase.database) return;
+
+    firebase.database()
+      .ref(this.roomPath)
+      .on('value', snap => {
+
+        const state = snap.val();
+
+        if(!state) return;
+
+        state.players = state.players || {};
+        state.scores = state.scores || {};
+        state.dice = state.dice || [];
+
+        window.gameState = state;
+
+        if(typeof renderFromSharedState === 'function'){
+          renderFromSharedState(state);
+        }
+
+      });
+  },
+
+  async patch(partial){
+
+    if(!window.firebase || !firebase.database) return;
+
+    return firebase.database()
+      .ref(this.roomPath)
+      .update(partial);
+  }
+};
+
+function isMyTurn(){
+  return (
+    window.gameState.activePlayerId ===
+    window.localPlayerId
+  );
+}
+
+function renderFromSharedState(state){
+
+  try{
+
+    if(typeof renderPlayers === 'function'){
+      renderPlayers(
+        Object.values(state.players || {})
+      );
+    }
+
+    if(typeof renderDice === 'function'){
+      renderDice(state.dice || []);
+    }
+
+    if(typeof renderStats === 'function'){
+      renderStats();
+    }
+
+  }catch(err){
+    console.warn('[SharedStateRender]', err);
+  }
+}
+</script>
+
+<script>
+// Shared-State Multiplayer: aggressive startup cleanup removed
 </script>
 
 <meta charset="UTF-8">
@@ -989,92 +1070,26 @@ top:10px;
 <script>
 window.gameState = {
  roomCode:'',
- players:{},          // MAP: {playerId: {...}} — KEIN Array
- activePlayerId:null, // Statt activePlayer:0
- dice:[],
+ players:[],
+ activePlayer:0,
+ dice:[1,1,1,1,1,1],
  selected:[],
- roundPoints:0,
+ roundScore:0,
  totalScores:{},
  phase:'waiting',
  winner:null
 };
 
-// Persistente Spieleridentität — NIEMALS neue ID bei Reload
-if(!localStorage.getItem('z10_player_id')){
-  localStorage.setItem('z10_player_id','p_'+Math.random().toString(36).slice(2,10));
-}
+window.currentUserId = localStorage.getItem('z10UserId') || (
+ 'u_' + Math.random().toString(36).slice(2)
+);
 
-// Einheitliche UserId: z10_player_id ist die EINZIGE Quelle
-window.currentUserId = localStorage.getItem('z10_player_id');
-// Rückwärtskompatibilität: z10_uid auf gleiche ID setzen
-localStorage.setItem('z10_uid', window.currentUserId);
+localStorage.setItem(
+ 'z10UserId',
+ window.currentUserId
+);
 
-console.log('[Z10] Bootstrap — PlayerId:', window.currentUserId);
-
-/* ══════════════════════════════════════════════
-   MULTIPLAYER STORE — Zentrale Firebase-Schicht
-   Alle Writes laufen durch hier. Kein set(room)
-   direkt im Spielcode mehr.
-   ══════════════════════════════════════════════ */
-window.MultiplayerStore = {
-  _ref: null,
-
-  _getRef(){
-    if(this._ref) return this._ref;
-    if(!window.firebase) return null;
-    this._ref = firebase.database().ref('z10_games/duesseldorf');
-    return this._ref;
-  },
-
-  /* Patch: nur geänderte Felder senden */
-  async patch(data){
-    const ref = this._getRef();
-    if(!ref) return;
-    data.updatedAt = Date.now();
-    await ref.update(data).catch(e=>console.warn('[Store.patch]',e));
-    window.gameState = Object.assign(window.gameState||{}, data);
-  },
-
-  /* Einzelnen Spieler-Score aktualisieren */
-  async patchPlayerScore(playerId, score){
-    const ref = this._getRef();
-    if(!ref) return;
-    await ref.child('players/'+playerId+'/score').set(score)
-      .catch(e=>console.warn('[Store.patchPlayerScore]',e));
-    // Lokal spiegeln
-    if(window.gameState && window.gameState.players){
-      const p = window.gameState.players[playerId];
-      if(p) p.score = score;
-    }
-  },
-
-  /* Nächsten Spieler per Transaction setzen — race-condition-sicher */
-  async advanceTurn(currentActiveId, allPlayerIds){
-    const ref = this._getRef();
-    if(!ref) return;
-    const idx = allPlayerIds.indexOf(currentActiveId);
-    const nextId = allPlayerIds[(idx+1) % allPlayerIds.length];
-    await ref.update({
-      activePlayerId: nextId,
-      dice: null,
-      selected: null,
-      roundPoints: 0,
-      mustSecure: false,
-      hasRolledThisTurn: false,
-      updatedAt: Date.now()
-    }).catch(e=>console.warn('[Store.advanceTurn]',e));
-    return nextId;
-  },
-
-  /* Spieler beim Join mergen — KEIN vollständiges Room-Replace */
-  async mergePlayer(playerId, playerData){
-    if(!window.firebase) return;
-    await firebase.database()
-      .ref('z10_rooms/duesseldorf/players/'+playerId)
-      .update(playerData)
-      .catch(e=>console.warn('[Store.mergePlayer]',e));
-  }
-};
+console.log('Z10 Multiplayer Bootstrap Active');
 </script>
 
 
@@ -1439,6 +1454,70 @@ function normalizePlayersArray(players){
   }
 }
 </style>
+
+
+<script>
+/* ===== TURN OWNERSHIP FIX ===== */
+
+window.getOrderedPlayers = function(){
+
+  const statePlayers = window.gameState?.players || {};
+
+  if(Array.isArray(statePlayers)){
+    return statePlayers.filter(Boolean);
+  }
+
+  return Object.values(statePlayers).filter(Boolean);
+};
+
+window.getCurrentPlayer = function(){
+
+  const players = getOrderedPlayers();
+
+  return players.find(
+    p => p && p.id === window.gameState.activePlayerId
+  );
+};
+
+window.advanceTurnByPlayerId = async function(){
+
+  const players = getOrderedPlayers();
+
+  if(!players.length) return;
+
+  let currentIndex = players.findIndex(
+    p => p && p.id === window.gameState.activePlayerId
+  );
+
+  if(currentIndex < 0){
+    currentIndex = 0;
+  }
+
+  const nextIndex = (currentIndex + 1) % players.length;
+
+  const nextPlayer = players[nextIndex];
+
+  if(!nextPlayer) return;
+
+  window.gameState.activePlayerId = nextPlayer.id;
+
+  if(window.MultiplayerStore){
+    await MultiplayerStore.patch({
+      activePlayerId: nextPlayer.id
+    });
+  }
+};
+
+window.isMyTurn = function(){
+
+  return (
+    String(window.gameState?.activePlayerId || '') ===
+    String(window.localPlayerId || '')
+  );
+};
+
+/* ===== END TURN FIX ===== */
+</script>
 
 </head>
 <body>
@@ -1807,56 +1886,33 @@ document.getElementById('overlay').style.display='none';
 }
 
 function renderPlayers(){
-  // Immer aus gameState lesen wenn vorhanden
-  const gs = window.gameState;
-  let pArr;
-  let activeId = null;
-
-  if(gs && gs.players && (gs.phase === 'playing' || Object.keys(gs.players).length > 0)){
-    // Normalisiere: Map oder Array → immer Array
-    pArr = Array.isArray(gs.players)
-      ? gs.players.filter(Boolean)
-      : Object.values(gs.players).filter(Boolean);
-    activeId = gs.activePlayerId || null;
-  } else {
-    // Fallback auf lokale Variable (Solo-Modus)
-    pArr = players || [];
-    activeId = pArr[currentPlayer]?.id || null;
-  }
-
-  document.getElementById('players').innerHTML=
-  pArr.map((p,i)=>`
-  <div class="player ${activeId ? (p.id===activeId?'active':'') : (i===currentPlayer?'active':'')}">
-  <div>${p.name||'Spieler'}</div>
-  <div class="score">${p.score||0}</div>
-  </div>`).join('');
+document.getElementById('players').innerHTML=
+players.map((p,i)=>`
+<div class="player ${i===currentPlayer?'active':''}">
+<div>${p.name}</div>
+<div class="score">${p.score}</div>
+</div>`).join('');
 }
 
 function renderDice(){
-  // Würfelzustand aus gameState (Priorität) oder lokal
-  const gs = window.gameState;
-  const _dice = (gs && gs.phase==='playing' && gs.dice) ? (Array.isArray(gs.dice) ? gs.dice : Object.values(gs.dice)) : dice;
-  const _selected = (gs && gs.phase==='playing' && gs.selected) ? (Array.isArray(gs.selected) ? gs.selected : []) : selected;
-  const _hasRolled = (gs && gs.phase==='playing') ? gs.hasRolledThisTurn : hasRolledThisTurn;
 
-  if(!_hasRolled || _dice.length===0){
-    document.getElementById('diceWrap').innerHTML = `<div class="cup"></div>`;
-    return;
-  }
+if(!hasRolledThisTurn){
+document.getElementById('diceWrap').innerHTML = `
+<div class="cup"></div>
+`;
+return;
+}
 
-  document.getElementById('diceWrap').innerHTML=
-  _dice.map((d,i)=>`
-  <div class="die ${_selected.includes(i)?'selected':''}"
-  onclick="toggleDie(${i})">${icons[d]||d}</div>
-  `).join('');
+document.getElementById('diceWrap').innerHTML=
+dice.map((d,i)=>`
+<div class="die ${selected.includes(i)?'selected':''}"
+onclick="toggleDie(${i})">${icons[d]}</div>
+`).join('');
 }
 
 function renderStats(){
-  const gs = window.gameState;
-  const _roundPoints = (gs && gs.phase==='playing') ? (gs.roundPoints||0) : roundPoints;
-  const _selectedPoints = selectedPoints; // lokale Berechnung beim Auswählen
-  document.getElementById('roundPoints').innerText=_roundPoints;
-  document.getElementById('selectedPoints').innerText=_selectedPoints;
+document.getElementById('roundPoints').innerText=roundPoints;
+document.getElementById('selectedPoints').innerText=selectedPoints;
 }
 
 function toggleDie(i){
@@ -1952,16 +2008,12 @@ document.getElementById('status').innerText=t;
 
 function rollDice(){
 
-// Multiplayer Turn-Guard — activePlayerId-basiert (nicht Index)
-if(window._bridgeActive){
-  const gs = window.gameState;
-  const myId = window.currentUserId;
-  // KI-Turns werden vom Host ausgeführt, kein Guard
-  const gsPlayers = gs && gs.players ? (Array.isArray(gs.players) ? gs.players : Object.values(gs.players)) : players;
-  const activePl = gsPlayers.find(p=>p.id===(gs&&gs.activePlayerId));
-  const isAITurn = activePl ? !!activePl.isAI : players?.[currentPlayer]?.isAI;
-  if(!isAITurn && gs && gs.activePlayerId && gs.activePlayerId !== myId){
-    setStatus('⏳ '+(activePl?.name||'Anderer Spieler')+' ist am Zug…');
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  const isAITurn = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn && currentPlayer !== window._myPlayerIndex){
+    const activeName = players?.[currentPlayer]?.name || 'Anderer Spieler';
+    setStatus("⏳ " + activeName + " ist am Zug...");
     return;
   }
 }
@@ -2097,15 +2149,13 @@ function bankPoints(){
 actionLocked=false;
 isRolling=false;
 
-// Multiplayer Turn-Guard — activePlayerId-basiert
-if(window._bridgeActive){
-  const _gs = window.gameState;
-  const _myId = window.currentUserId;
-  const _gsP = _gs && _gs.players ? (Array.isArray(_gs.players) ? _gs.players : Object.values(_gs.players)) : players;
-  const _activePl = _gsP.find(p=>p.id===(_gs&&_gs.activePlayerId));
-  const _isAITurn = _activePl ? !!_activePl.isAI : players?.[currentPlayer]?.isAI;
-  if(!_isAITurn && _gs && _gs.activePlayerId && _gs.activePlayerId !== _myId) return;
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
 }
+
+if(selectedPoints<=0){
 setStatus("Keine gültigen Würfel gewählt.");
 return;
 }
@@ -2262,14 +2312,10 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function endTurn(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard — activePlayerId-basiert
-if(window._bridgeActive){
-  const _gs2 = window.gameState;
-  const _myId2 = window.currentUserId;
-  const _gsP2 = _gs2 && _gs2.players ? (Array.isArray(_gs2.players) ? _gs2.players : Object.values(_gs2.players)) : players;
-  const _activePl2 = _gsP2.find(p=>p.id===(_gs2&&_gs2.activePlayerId));
-  const _isAI2 = _activePl2 ? !!_activePl2.isAI : players?.[currentPlayer]?.isAI;
-  if(!_isAI2 && _gs2 && _gs2.activePlayerId && _gs2.activePlayerId !== _myId2) return;
+// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
+if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
+  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
+  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
 }
 
 if(roundPoints<250){
@@ -2360,11 +2406,6 @@ if(currentPlayer >= players.length) currentPlayer = 0;
 
 // Noch KEINE Würfel anzeigen
 dice = [];
-
-// activePlayerId im gameState aktualisieren
-if(window.gameState && players[currentPlayer]?.id){
-  window.gameState.activePlayerId = players[currentPlayer].id;
-}
 
 renderPlayers();
 renderDice();
@@ -3479,7 +3520,7 @@ window.renderFromGlobalState = function(){
 };
 
 window.addEventListener('load',()=>{
- 
+ console.log('Premium Multiplayer Merge Loaded');
 });
 </script>
 
@@ -3663,7 +3704,7 @@ Aktualisieren
 <script>
 (function(){
 
-
+console.log('MULTIPLAYER LOBBY STAGE2 ACTIVE');
 
 window.mpRooms = [];
 
@@ -3794,10 +3835,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-if(typeof firebase === 'undefined'){
-  console.warn('[Z10] Firebase SDK nicht geladen — ROOM SYNC übersprungen');
-  return;
-}
+console.log('FIREBASE ROOM SYNC ACTIVE');
 
 const firebaseConfig = {
 apiKey:"AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
@@ -3882,7 +3920,7 @@ function renderRooms(rooms){
        ${room.name || 'Düsseldorf'}
      </div>
      <div style="opacity:.7;margin-top:4px;font-size:14px">
-       ${(()=>{ const rp=room.players||{}; return Array.isArray(rp)?rp.length:Object.keys(rp).length; })()}/${room.maxPlayers} Spieler
+       ${(room.players||[]).length}/${room.maxPlayers} Spieler
      </div>
      ${(() => {
        const rawP = room.players||[];
@@ -3963,7 +4001,6 @@ function createRoom(){
  const roomId =
  'room_' + Math.random().toString(36).slice(2,8);
 
- const _myId = window.currentUserId;
  const room = {
    id:roomId,
    name:'Zehntausend Lobby',
@@ -3971,9 +4008,13 @@ function createRoom(){
    maxPlayers,
    allowAI,
    phase:'waiting',
-   players:{
-     [_myId]:{id:_myId,name:window.currentPlayerName,type:'human',online:true,lastSeen:Date.now()}
-   }
+   players:[
+     {
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     }
+   ]
  };
 
  roomsRef().child(roomId).set(room);
@@ -3982,15 +4023,39 @@ function createRoom(){
 
 function joinRoom(roomId){
 
- const myId3 = window.currentUserId;
- const myName3 = window.currentPlayerName || 'Spieler';
+ roomsRef().child(roomId)
+ .once('value')
+ .then(snap=>{
 
- // Map-Merge per update() — kein Array-Push + set()
- roomsRef().child(roomId+'/players/'+myId3)
- .update({id:myId3,name:myName3,type:'human',online:true,lastSeen:Date.now()})
- .then(()=>{
-   roomsRef().child(roomId).update({lastActivity:Date.now()});
- }).catch(e=>console.warn('[Stage2 joinRoom]',e));
+   const room = snap.val();
+
+   if(!room) return;
+
+   room.players = room.players || [];
+
+   const exists =
+   room.players.find(
+    p=>p.id===window.currentUserId
+   );
+
+   if(!exists){
+
+     room.players.push({
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     });
+
+   }
+
+   roomsRef().child(roomId).set(room);
+
+   alert(
+    'Beigetreten: '
+    + room.name
+   );
+
+ });
 
 }
 
@@ -4010,7 +4075,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-
+console.log('START GAME SYNC ACTIVE');
 
 window.currentRoomId = null;
 
@@ -4143,19 +4208,39 @@ function applyLobbyName(){ return window.applyLobbyName(); }
 window.joinRoom = function(roomId){
   if(!applyLobbyName()) return;
 
-  const myId = window.currentUserId;
-  const myName = window.currentPlayerName || 'Spieler';
+ firebase.database()
+ .ref('z10_rooms/'+roomId)
+ .once('value')
+ .then(snap=>{
 
-  // Map-Merge statt Array-Push + set(room)
-  firebase.database()
-    .ref('z10_rooms/'+roomId+'/players/'+myId)
-    .update({id:myId,name:myName,type:'human',online:true,lastSeen:Date.now()})
-    .then(()=>{
-      firebase.database().ref('z10_rooms/'+roomId).update({lastActivity:Date.now()});
-      window._activateBridge();
-      watchRoom(roomId);
-    })
-    .catch(e=>console.warn('[joinRoom legacy]',e));
+   const room = snap.val();
+
+   if(!room) return;
+
+   room.players = room.players || [];
+
+   const exists =
+   room.players.find(
+     p=>p.id===window.currentUserId
+   );
+
+   if(!exists){
+
+     room.players.push({
+       id:window.currentUserId,
+       name:window.currentPlayerName,
+       type:'human'
+     });
+
+   }
+
+   firebase.database()
+   .ref('z10_rooms/'+roomId)
+   .set(room);
+
+   watchRoom(roomId);
+
+ });
 
 };
 
@@ -4174,7 +4259,7 @@ window.createRoom = function(){
 <script>
 (function(){
 
-
+console.log('STAGE5 LOBBY OVERRIDE ACTIVE');
 
 const ROOM_NAMES = [
  'Düsseldorf',
@@ -4210,11 +4295,10 @@ window.createRoom = async function(){
  const roomId =
  'room_' + Math.random().toString(36).slice(2,8);
 
- const myId2 = window.currentUserId;
  const room = {
    id:roomId,
    name:getRoomName(rooms),
-   hostId:myId2,
+   hostId:window.currentUserId,
    createdAt:Date.now(),
    lastActivity:Date.now(),
    maxPlayers:parseInt(
@@ -4223,9 +4307,11 @@ window.createRoom = async function(){
    allowAI:
      document.getElementById('mpAllowAI').checked,
    phase:'waiting',
-   players:{
-     [myId2]:{id:myId2,name:window.currentPlayerName,type:'human',online:true,lastSeen:Date.now()}
-   }
+   players:[{
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
+   }]
  };
 
  await db.ref('z10_rooms/'+roomId).set(room);
@@ -4301,10 +4387,15 @@ window.watchRoom = function(roomId){
    }
 
    if(room.phase === 'playing'){
-     // Lobby ausblenden — Spiel wird via gameRef-Listener gestartet
-     const lobby = document.getElementById('mpLobbyOverlay');
-     if(lobby && window._bridgeActive) lobby.style.display='none';
-     // Kein alert! hydratePremiumState übernimmt das Rendering.
+
+     document.getElementById(
+      'mpLobbyOverlay'
+     ).style.display='none';
+
+     alert(
+      'Gemeinsames Spiel startet jetzt'
+     );
+
    }
 
  });
@@ -4313,29 +4404,47 @@ window.watchRoom = function(roomId){
 
 window.joinRoom = async function(roomId){
 
- // Name aus Input lesen
+ // Name direkt aus Input lesen
  const nameInp = document.getElementById('mpPlayerNameInput');
  if(nameInp && nameInp.value.trim()){
    window.currentPlayerName = nameInp.value.trim();
    localStorage.setItem('z10_name', window.currentPlayerName);
  }
 
- const myId = window.currentUserId;
- const myName = window.currentPlayerName || 'Spieler';
+ const db = firebase.database();
 
- // Spieler per update() in die Map mergen — KEIN set(room) mehr
- await firebase.database()
-   .ref('z10_rooms/'+roomId+'/players/'+myId)
-   .update({id:myId, name:myName, type:'human', online:true, lastSeen:Date.now()})
-   .catch(e=>console.warn('[joinRoom]',e));
+ const ref =
+ db.ref('z10_rooms/'+roomId);
 
- await firebase.database()
-   .ref('z10_rooms/'+roomId)
-   .update({lastActivity:Date.now()})
-   .catch(()=>{});
+ const snap =
+ await ref.once('value');
+
+ const room = snap.val();
+
+ if(!room) return;
+
+ room.players = room.players || [];
+
+ const exists =
+ room.players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ if(!exists){
+
+   room.players.push({
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
+   });
+
+ }
+
+ room.lastActivity = Date.now();
+
+ await ref.set(room);
 
  window.currentRoomId = roomId;
- window._activateBridge();
 
  watchRoom(roomId);
 
@@ -4394,7 +4503,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-
+console.log('STAGE6 LEGACY START BLOCK ACTIVE');
 
 window.__MULTIPLAYER_MODE__ = true;
 
@@ -4540,7 +4649,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-
+console.log('STAGE7 LEGACY AUTOBOOT BLOCK ACTIVE');
 
 window.__MULTIPLAYER_RUNNING__ = false;
 
@@ -4548,7 +4657,7 @@ window.stopLegacyBoot = function(){
 
  if(!window.__MULTIPLAYER_RUNNING__) return;
 
- console.warn('[Z10] Legacy blocked');
+ console.log('Blocking legacy autoboot');
 
  const blockedNames = [
   'init',
@@ -4651,7 +4760,7 @@ window.startSharedGame = function(room){
 <script>
 (function(){
 
-
+console.log('STAGE8 ROOT APP OVERRIDE ACTIVE');
 
 window.__MULTIPLAYER_ROOT__ = true;
 
@@ -4803,7 +4912,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-
+console.log('STAGE9 SHARED GAMESTATE ACTIVE');
 
 if(!window.firebase) return;
 
@@ -4818,39 +4927,38 @@ function gameRef(roomId){
 
 window.createSharedGameState = async function(room){
 
- // Normalisiere Room-Players zu Map
- const rawP = room.players || {};
- const pArr = Array.isArray(rawP) ? rawP.filter(Boolean) : Object.values(rawP).filter(Boolean);
- const playersMap = {};
- pArr.forEach(p=>{ if(p&&p.id) playersMap[p.id]={name:p.name,score:0,isAI:!!p.isAI,id:p.id}; });
-
- const firstId = pArr[0]?.id || null;
-
  const state = {
    roomId: room.id,
-   players: playersMap,        // MAP statt Array
-   activePlayerId: firstId,    // ID statt Index
-   dice: null,
-   selected: null,
-   roundPoints: 0,
+   players: room.players || [],
+   activePlayerIndex: 0,
+   activePlayerId: room.players?.[0]?.id || null,
+   dice: [1,1,1,1,1,1],
+   selected: [],
+   roundScore: 0,
    totalScores: {},
    mode: room.mode || 'classic',
    phase: 'playing',
    updatedAt: Date.now()
  };
 
- pArr.forEach(p=>{ state.totalScores[p.id] = 0; });
+ state.players.forEach(p=>{
+   state.totalScores[p.id] = 0;
+ });
 
  await gameRef(room.id).set(state);
 
 };
 
 window.mountSharedGame = function(state){
-  if(!state) return;
+  // Nur ausführen wenn Bridge aktiv (User hat Lobby genutzt)
+  if(!window._bridgeActive) return;
 
   window.gameState = state;
 
-  // Badge aktualisieren
+  const overlay = document.getElementById('mpLobbyOverlay');
+  if(overlay && window._bridgeActive) overlay.style.display = 'none';
+
+  // Badge aktualisieren (kein Overlay erstellen)
   let badge = document.getElementById('sharedGameBadge');
   if(!badge){
     badge = document.createElement('div');
@@ -4858,8 +4966,7 @@ window.mountSharedGame = function(state){
     badge.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;background:#16a34a;color:white;padding:8px 14px;border-radius:10px;font-weight:bold;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.3)';
     document.body.appendChild(badge);
   }
-  const pArr = state.players ? (Array.isArray(state.players)?state.players:Object.values(state.players)) : [];
-  const current = pArr.find(p=>p&&p.id===state.activePlayerId);
+  const current = normalizePlayersArray(state.players).find(p=>p.id===state.activePlayerId);
   badge.textContent = '🎲 ' + (current?.name || 'Multiplayer');
 
   if(window.hydratePremiumState) window.hydratePremiumState(state);
@@ -4940,33 +5047,42 @@ window.startRoomGame = async function(roomId){
 window.submitSharedAction = async function(action){
 
  if(!window.gameState) return;
- if(window.gameState.activePlayerId !== window.currentUserId) return;
 
- const state = JSON.parse(JSON.stringify(window.gameState));
+ if(
+  window.gameState.activePlayerId
+  !== window.currentUserId
+ ){
+   return;
+ }
 
- // Players normalisieren (Map → Array für Turnberechnung)
- const pMap = state.players || {};
- const pArr = Array.isArray(pMap) ? pMap : Object.values(pMap);
- const ids = pArr.map(p=>p.id).filter(Boolean);
+ const state =
+ JSON.parse(JSON.stringify(window.gameState));
 
  if(action.type === 'END_TURN'){
-   const idx = ids.indexOf(state.activePlayerId);
-   const nextId = ids[(idx+1) % ids.length];
-   state.activePlayerId = nextId;
+
+   const next =
+   (state.activePlayerIndex + 1)
+   % state.players.length;
+
+   state.activePlayerIndex = next;
+
+   state.activePlayerId =
+   state.players[next].id;
+
  }
 
  if(action.type === 'ROLL_DICE'){
-   state.dice = Array.from({length:6}).map(()=>1+Math.floor(Math.random()*6));
+
+   state.dice =
+   Array.from({length:6})
+   .map(()=>1+Math.floor(Math.random()*6));
+
  }
 
  state.updatedAt = Date.now();
 
- // update() statt set() — kein vollständiges Überschreiben
- await gameRef(state.roomId).update({
-   activePlayerId: state.activePlayerId,
-   dice: state.dice || null,
-   updatedAt: state.updatedAt
- });
+ await gameRef(state.roomId)
+ .set(state);
 
 };
 
@@ -5015,7 +5131,7 @@ window.addEventListener('load',()=>{
 <script>
 (function(){
 
-
+console.log('FINAL STAGE10 SINGLE ROOM MULTIPLAYER');
 
 if(!window.firebase) return;
 
@@ -5023,10 +5139,18 @@ const db = firebase.database();
 
 const ROOM_ID = 'duesseldorf';
 
-// Persistente Identität aus Bootstrap — KEIN neues z10_uid erzeugen
-// window.currentUserId = z10_player_id (aus dem Bootstrap-Script gesetzt)
+window.currentUserId =
+ localStorage.getItem('z10_uid')
+ || ('u_' + Math.random().toString(36).slice(2,10));
+
+localStorage.setItem(
+ 'z10_uid',
+ window.currentUserId
+);
+
 window.currentPlayerName =
- localStorage.getItem('z10_name') || '';
+ localStorage.getItem('z10_name')
+ || ('Spieler_' + Math.floor(Math.random()*999));
 
 function roomRef(){
  return db.ref('z10_rooms/' + ROOM_ID);
@@ -5038,7 +5162,7 @@ function gameRef(){
 
 async function ensureMainRoom(){
 
- // Alte Räume außer Düsseldorf löschen
+ // Alte Räume aggressiv löschen (außer Düsseldorf)
  try{
    const allSnap = await db.ref('z10_rooms').once('value');
    const all = allSnap.val() || {};
@@ -5047,15 +5171,32 @@ async function ensureMainRoom(){
    }
  }catch(e){}
 
+ // Alten gameover-State löschen
+ try{
+   const gSnap = await gameRef().once('value');
+   const gs = gSnap.val();
+   if(gs && gs.phase === 'gameover'){
+     await gameRef().remove();
+   }
+ }catch(e){ console.warn('cleanup:', e); }
+
  const snap = await roomRef().once('value');
 
  if(snap.exists()){
-   // Raum existiert bereits — nur lastActivity aktualisieren, players NICHT antasten
-   await roomRef().update({lastActivity: Date.now()});
+   // Ghost-Spieler (Spieler_XXX) aus bestehendem Raum entfernen
+   const existingRoom = snap.val();
+   const rawPlayers = existingRoom ? (existingRoom.players||[]) : [];
+   const playerArr = Array.isArray(rawPlayers)
+     ? rawPlayers
+     : Object.values(rawPlayers);
+   const clean = playerArr.filter(p=>
+     p && p.name && !/^Spieler_?\d+$/i.test(p.name)
+   );
+   // Immer players neu setzen um sauberen Stand zu haben
+   await roomRef().child('players').set(clean);
    return;
  }
 
- // Neuen Raum anlegen (nur wenn nicht vorhanden)
  await roomRef().set({
    id:ROOM_ID,
    name:'Düsseldorf',
@@ -5065,53 +5206,63 @@ async function ensureMainRoom(){
    allowAI:true,
    createdAt:Date.now(),
    lastActivity:Date.now(),
-   players:{}  // Map statt Array
+   players:[]
  });
 
 }
 
 window.joinMainRoom = async function joinMainRoom(){
 
- // Namen aus Eingabefeld übernehmen
+ // Immer zuerst Namen aus Eingabefeld übernehmen
  if(typeof applyLobbyName === 'function') applyLobbyName();
 
- const myId = window.currentUserId;  // persistente ID aus localStorage
- const myName = window.currentPlayerName || localStorage.getItem('z10_name') || 'Spieler';
+ const snap = await roomRef().once('value');
 
- try{
-   // Spieler als einzelnen Eintrag in die Map mergen — KEIN set(room)
-   // Damit verschwinden weder Host noch andere Spieler
-   await roomRef().child('players/' + myId).update({
-     id: myId,
-     name: myName,
-     type: 'human',
-     online: true,
-     lastSeen: Date.now()
+ const room = snap.val();
+
+ room.players = room.players || [];
+
+ const exists =
+ room.players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ if(!exists){
+
+   room.players.push({
+     id:window.currentUserId,
+     name:window.currentPlayerName,
+     type:'human'
    });
-   await roomRef().update({lastActivity: Date.now()});
 
-   window.currentRoomId = ROOM_ID;
-   window._activateBridge();
-   console.log('[joinMainRoom] Spieler', myId, 'beigetreten/aktualisiert');
- } catch(e){
-   console.error('[joinMainRoom] Fehler:', e);
+ } else {
+   // Name aktualisieren falls geändert
+   exists.name = window.currentPlayerName;
  }
+
+ room.lastActivity = Date.now();
+
+ await roomRef().set(room);
+
 }
 
 function renderSingleRoom(room){
 
- const list = document.getElementById('publicRoomList');
+ const list =
+ document.getElementById('publicRoomList');
+
  if(!list) return;
 
- // Players Map oder Array → Array
- const rawP = room.players || {};
- const playersArr = Array.isArray(rawP)
-   ? rawP.filter(Boolean)
-   : Object.values(rawP).filter(Boolean);
+ const players =
+ room.players || [];
 
- const myId = window.currentUserId;
- const joined = playersArr.some(p=>p.id===myId);
- const maxP = room.maxPlayers || 4;
+ const joined =
+ players.find(
+  p=>p.id===window.currentUserId
+ );
+
+ const isHost =
+ players[0]?.id === window.currentUserId;
 
  list.innerHTML = `
  <div
@@ -5141,7 +5292,7 @@ function renderSingleRoom(room){
        opacity:.7;
        margin-top:6px;
        ">
-       ${playersArr.length}/${maxP} Spieler
+       ${players.length}/10 Spieler
        </div>
 
        <div style="
@@ -5208,13 +5359,13 @@ function renderSingleRoom(room){
    ">
 
    ${
-     playersArr.map(p=>`
+     players.map(p=>`
        <div style="
        background:#241d40;
        padding:10px 14px;
        border-radius:12px;
        ">
-       ${p.name||'?'}
+       ${p.name}
        </div>
      `).join('')
    }
@@ -5237,7 +5388,7 @@ function renderSingleRoom(room){
 window.startSharedGameNow = async function startSharedGameNow(){
  try{
 
- // Name aus Eingabefeld
+ // Name aus Eingabefeld holen
  const nameInp = document.getElementById('mpPlayerNameInput');
  const typedName = nameInp ? nameInp.value.trim() : '';
  if(!typedName){
@@ -5248,76 +5399,61 @@ window.startSharedGameNow = async function startSharedGameNow(){
  window.currentPlayerName = typedName;
  localStorage.setItem('z10_name', typedName);
 
- // Host-Spieler beitreten falls noch nicht geschehen
- const myId = window.currentUserId;
+ // (applyLobbyName bereits oben inline erledigt)
+
+ // Wenn noch nicht beigetreten, erst beitreten
  const preSnap = await roomRef().once('value');
- const preRoom = preSnap.val() || {};
- const prePlayersMap = preRoom.players || {};
- // Prüfen ob Host-ID schon in der Map (Map oder Array kompatibel)
- let hostInRoom = false;
- if(Array.isArray(prePlayersMap)){
-   hostInRoom = prePlayersMap.some(p=>p&&p.id===myId);
- } else {
-   hostInRoom = !!prePlayersMap[myId];
- }
- if(!hostInRoom){
+ const preRoom = preSnap.val();
+ const myId = window.currentUserId;
+ if(preRoom && !(preRoom.players||[]).some(p=>p&&p.id===myId)){
    await joinMainRoom().catch(()=>{});
  }
 
- // Raumdaten laden (nach join)
- const roomSnap = await roomRef().once('value');
- const room = roomSnap.val() || {};
+ const roomSnap =
+ await roomRef().once('value');
 
- // Players aus Raum als Map normalisieren
- let roomPlayersRaw = room.players || {};
- let roomPlayersArr = Array.isArray(roomPlayersRaw)
-   ? roomPlayersRaw.filter(Boolean)
-   : Object.values(roomPlayersRaw).filter(Boolean);
+ const room = roomSnap.val();
+ const roomPlayers = room.players || [];
 
- // Lokale players-Engine befüllen
- players = roomPlayersArr.map((p,i)=>({
-   name: p.name || ('Spieler '+(i+1)),
-   score: 0,
-   isAI: !!p.isAI,
-   id: p.id || ('p_'+i)
- }));
-
- // KI-Spieler auffüllen
- const sel = document.getElementById('mpMaxPlayers');
- const maxP = sel ? parseInt(sel.value) : (room.maxPlayers || 4);
- const allowAI = document.getElementById('mpAllowAI')?.checked !== false;
- const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
- const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
- const humanNames = players.filter(p=>!p.isAI).map(p=>(p.name||'').toLowerCase().trim());
- const aiPool = shuffled.filter(n=>!humanNames.includes(n.toLowerCase()));
- let ai=0;
- while(allowAI && players.length < maxP){
-   const aiN = aiPool[ai] || ('KI'+(ai+1)); ai++;
-   players.push({name:aiN+' (KI)',score:0,isAI:true,id:'ai_'+ai+'_'+Date.now()});
+ // ── Lokale players-Engine aus Firebase-Raum befüllen ──
+ // So kennt die Premium-Engine die richtigen Spieler
+ if(typeof players !== 'undefined'){
+   players = roomPlayers.map((p,i)=>({
+     name: p.name || ('Spieler '+(i+1)),
+     score: 0,
+     isAI: !!p.isAI,
+     id: p.id || ('p_'+i)
+   }));
+   // Fehlende Slots mit KI auffüllen
+   const sel = document.getElementById('mpMaxPlayers');
+   const maxP = sel ? parseInt(sel.value) : (room.maxPlayers || 4);
+   const allowAI = document.getElementById('mpAllowAI')?.checked !== false;
+   const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
+   const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
+   const humanNames = players.filter(p=>!p.isAI).map(p=>p.name.toLowerCase().trim());
+   const aiPool = shuffled.filter(n=>!humanNames.includes(n.toLowerCase()));
+   let ai=0;
+   while(allowAI && players.length < maxP){
+     const aiN = aiPool[ai] || ('KI'+(ai+1)); ai++;
+     players.push({name:aiN+' (KI)',score:0,isAI:true,id:'ai_'+(ai)});
+   }
+   if(typeof currentPlayer !== 'undefined') currentPlayer = 0;
+   if(typeof roundPoints !== 'undefined') roundPoints = 0;
+   if(typeof dice !== 'undefined') dice = [];
+   if(typeof selected !== 'undefined') selected = [];
+   if(typeof mustSecure !== 'undefined') mustSecure = false;
+   if(typeof hasRolledThisTurn !== 'undefined') hasRolledThisTurn = false;
  }
-
- // Spielzustand zurücksetzen
- currentPlayer = 0;
- roundPoints = 0;
- dice = [];
- selected = [];
- mustSecure = false;
- hasRolledThisTurn = false;
-
- // Players als MAP (nicht Array) speichern
- const playersMap = {};
- players.forEach(p=>{ playersMap[p.id] = {name:p.name,score:0,isAI:!!p.isAI,id:p.id}; });
-
- const firstPlayerId = players[0]?.id || null;
 
  const state = {
    roomId: ROOM_ID,
    phase: 'playing',
    currentPlayer: 0,
-   activePlayerId: firstPlayerId,   // ID statt Index!
-   players: playersMap,             // MAP statt Array!
-   dice: null,
-   selected: null,
+   activePlayerIndex: 0,
+   activePlayerId: roomPlayers[0]?.id || (players[0]?.id) || null,
+   players: players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI,id:p.id})),
+   dice: [],
+   selected: [],
    roundPoints: 0,
    mustSecure: false,
    hasRolledThisTurn: false,
@@ -5325,31 +5461,27 @@ window.startSharedGameNow = async function startSharedGameNow(){
    updatedAt: Date.now()
  };
 
- players.forEach(p=>{ state.totalScores[p.id||p.name] = 0; });
+ state.players.forEach(p=>{ state.totalScores[p.id||p.name] = 0; });
 
- // Bridge aktivieren BEVOR Firebase-Write
+ // Bridge für Host aktivieren BEVOR Firebase-Write
+ if(window._isBridgeActive !== undefined) window._isBridgeActive = true;
  window._bridgeActive = true;
- if(window._lobbyObserver) window._lobbyObserver.disconnect();
 
- // Spiel in Firebase anlegen (einmalig set() beim Spielstart ist OK)
  await gameRef().set(state);
  await roomRef().update({phase:'playing', lastActivity:Date.now()});
 
- // gameState lokal spiegeln
- window.gameState = state;
-
- // UI aktualisieren
- const setup = document.getElementById('setupScreen');
- if(setup) setup.style.display='none';
- const lobby = document.getElementById('mpLobbyOverlay');
- if(lobby) lobby.style.display='none';
-
+ // Bridge initialisieren → pusht State
  setTimeout(()=>{
+   if(window.initBridgeForHost) window.initBridgeForHost();
+   const setup = document.getElementById('setupScreen');
+   if(setup) setup.style.display='none';
+   const lobby = document.getElementById('mpLobbyOverlay');
+   if(lobby) lobby.style.display='none';
    if(typeof renderPlayers==='function') renderPlayers();
    if(typeof renderDice==='function') renderDice();
    if(typeof renderStats==='function') renderStats();
    if(typeof setStatus==='function') setStatus('🎲 Du bist dran — würfle!');
- }, 200);
+ }, 300);
 
  }catch(err){
    console.error('startSharedGameNow failed:',err);
@@ -5463,38 +5595,49 @@ function renderGame(state){
 }
 
 async function rollDice(){
- if(window._bridgeActive) return; // Bridge-Modus: lokale Engine übernimmt
+
  const snap = await gameRef().once('value');
+
  const state = snap.val();
- if(!state || state.activePlayerId !== window.currentUserId) return;
- await gameRef().update({
-   dice: Array.from({length:6}).map(()=>1+Math.floor(Math.random()*6)),
-   updatedAt: Date.now()
- });
+
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ) return;
+
+ state.dice =
+ Array.from({length:6})
+ .map(()=>1+Math.floor(Math.random()*6));
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
 }
 
 async function endTurn(){
- if(window._bridgeActive) return; // Bridge-Modus: lokale Engine übernimmt
+
  const snap = await gameRef().once('value');
+
  const state = snap.val();
- if(!state || state.activePlayerId !== window.currentUserId) return;
 
- // Map-basierter Turnwechsel
- const pMap = state.players || {};
- const pArr = Array.isArray(pMap) ? pMap : Object.values(pMap);
- const ids = pArr.map(p=>p.id).filter(Boolean);
- const idx = ids.indexOf(state.activePlayerId);
- const nextId = ids[(idx+1) % ids.length];
+ if(
+  state.activePlayerId
+  !== window.currentUserId
+ ) return;
 
- await gameRef().update({
-   activePlayerId: nextId,
-   dice: null,
-   selected: null,
-   roundPoints: 0,
-   mustSecure: false,
-   hasRolledThisTurn: false,
-   updatedAt: Date.now()
- });
+ const next =
+ (state.activePlayerIndex + 1)
+ % state.players.length;
+
+ state.activePlayerIndex = next;
+ state.activePlayerId =
+ state.players[next].id;
+
+ state.updatedAt = Date.now();
+
+ await gameRef().set(state);
+
 }
 
 window.addEventListener('load',async ()=>{
@@ -5502,32 +5645,23 @@ window.addEventListener('load',async ()=>{
  await ensureMainRoom();
 
  roomRef().on('value',snap=>{
+
    const room = snap.val();
+
    if(!room) return;
+
    renderSingleRoom(room);
+
  });
 
- // Auto-Reconnect: Beim Seitenladen prüfen ob Spiel läuft und wir darin sind
- try{
-   const gSnap = await gameRef().once('value');
-   const gs = gSnap.val();
-   if(gs && gs.phase === 'playing' && gs.players){
-     const myId = window.currentUserId;
-     const pArr = Array.isArray(gs.players) ? gs.players : Object.values(gs.players);
-     const amInGame = pArr.some(p=>p&&p.id===myId);
-     if(amInGame){
-       console.log('[Stage10] Auto-Reconnect:', myId);
-       window._activateBridge();
-       window.gameState = gs;
-       if(window.hydratePremiumState) window.hydratePremiumState(gs);
-     }
-   }
- }catch(e){ console.warn('[Stage10] reconnect check:', e); }
-
  gameRef().on('value',snap=>{
+
    const state = snap.val();
+
    if(!state) return;
+
    renderGame(state);
+
  });
 
 });
@@ -5550,20 +5684,14 @@ window.addEventListener('load',async ()=>{
 document.addEventListener('DOMContentLoaded',()=>{
   const lobby = document.getElementById('mpLobbyOverlay');
   if(!lobby) return;
-
   const obs = new MutationObserver(()=>{
-    // Nur wiederherstellen wenn Bridge NICHT aktiv UND kein laufendes Spiel
-    const gs = window.gameState;
-    const isRunning = gs && gs.phase === 'playing';
-    if(!window._bridgeActive && !isRunning && lobby.style.display === 'none'){
+    if(!window._bridgeActive && lobby.style.display === 'none'){
       lobby.style.display = 'flex';
     }
   });
   obs.observe(lobby, {attributes:true, attributeFilter:['style']});
   window._lobbyObserver = obs;
-
-  // Beim Start: Lobby zeigen — außer wenn ein laufendes Spiel vorliegt
-  // (wird beim ersten Firebase-Update via hydratePremiumState ausgeblendet)
+  // Lobby immer sichtbar bis User aktiv beitritt
   lobby.style.display = 'flex';
   lobby.style.zIndex = '999999';
 });
@@ -5586,78 +5714,46 @@ function getGameRef(){
   return _gameRef;
 }
 
-/* ── 1. STATE → FIREBASE: Patch statt Replace ── */
+/* ── 1. STATE → FIREBASE (nach jeder lokalen Aktion) ── */
 window.pushStateToFirebase = function(){
   if(!window._bridgeActive) return;
   const ref = getGameRef();
   if(!ref) return;
 
-  // Players lokales Array → Map {id: {...}}
-  const playersMap = {};
-  (players||[]).forEach(p=>{
-    if(p && p.id) playersMap[p.id] = {
-      name: p.name,
-      score: p.score||0,
-      isAI: !!p.isAI,
-      id: p.id
-    };
-  });
-
-  const activeId = players[currentPlayer]?.id || null;
-
-  const patch = {
+  const state = {
     currentPlayer,
-    activePlayerId: activeId,
-    dice: dice.length ? [...dice] : null,
-    selected: selected.length ? [...selected] : null,
+    dice: [...dice],
+    selected: [...selected],
     roundPoints,
     mustSecure,
     hasRolledThisTurn,
-    players: playersMap,
+    players: players.map(p=>({
+      name: p.name,
+      score: p.score,
+      isAI: !!p.isAI,
+      id: p.id || null
+    })),
+    activePlayerId: players[currentPlayer]?.id || null,
     phase: 'playing',
     updatedAt: Date.now()
   };
 
-  // window.gameState lokal vorhalten
-  window.gameState = Object.assign(window.gameState||{}, patch);
-
-  // Firebase: update() statt set() — kein vollständiges Überschreiben
-  ref.update(patch).catch(e=>console.warn('[pushState] update error:', e));
+  window.gameState = state;
+  ref.set(state).catch(e=>console.warn('push:', e));
 };
 
 /* ── 2. FIREBASE → LOKALE VARIABLEN (Hydration) ── */
 window.hydratePremiumState = function(state){
   if(!state) return;
+
+  // Veraltete oder gameover States ignorieren
   if(state.phase === 'gameover') return;
   if(state.phase !== 'playing') return;
+  if(!state.players || state.players.length === 0) return;
 
-  // Normalisiere players: Map oder Array → immer Array
-  const rawPlayers = state.players;
-  let playersArr = [];
-  if(rawPlayers){
-    if(Array.isArray(rawPlayers)){
-      playersArr = rawPlayers.filter(Boolean);
-    } else if(typeof rawPlayers === 'object'){
-      playersArr = Object.values(rawPlayers).filter(Boolean);
-    }
-  }
-  if(playersArr.length === 0) return;
-
-  // Auto-Reconnect: Bridge aktivieren wenn dieser Spieler im Spiel ist
-  const myId = window.currentUserId;
-  const amInGame = playersArr.some(p=>p.id===myId);
-
-  if(!window._bridgeActive){
-    if(amInGame){
-      // Ich war in diesem Spiel — automatisch reconnecten
-      console.log('[hydrate] Auto-Reconnect erkannt für', myId);
-      window._bridgeActive = true;
-      if(window._lobbyObserver) window._lobbyObserver.disconnect();
-    } else {
-      // Ich bin nicht in diesem Spiel — Lobby zeigen
-      return;
-    }
-  }
+  // Bridge automatisch aktivieren wenn Gast über Lobby beitritt
+  // NICHT automatisch beim Seitenladen feuern
+  if(!window._bridgeActive) return;
 
   // Veraltete Updates ignorieren
   if(state.updatedAt && state.updatedAt <= _lastTs) return;
@@ -5665,25 +5761,20 @@ window.hydratePremiumState = function(state){
 
   window.gameState = state;
 
+  const myId = window.currentUserId;
   const isMyTurn = state.activePlayerId === myId;
 
-  // Lokale Variablen aus Firebase-State befüllen
-  players = playersArr.map(p=>({
-    name: p.name||'Spieler',
-    score: p.score||0,
-    isAI: !!p.isAI,
-    id: p.id||null
-  }));
-
-  // currentPlayer aus activePlayerId berechnen
-  if(state.activePlayerId){
-    const idx = players.findIndex(p=>p.id===state.activePlayerId);
-    if(idx >= 0) currentPlayer = idx;
-  } else if(typeof state.currentPlayer === 'number'){
-    currentPlayer = state.currentPlayer;
+  // Lokale Variablen hydratisieren
+  if(Array.isArray(state.players)){
+    players = state.players.map(p=>({
+      name: p.name,
+      score: p.score || 0,
+      isAI: !!p.isAI,
+      id: p.id || null
+    }));
   }
-
-  // Würfel: Firebase kann [] als null speichern
+  if(typeof state.currentPlayer === 'number') currentPlayer = state.currentPlayer;
+  // Firebase speichert [] als null, {} als Objekt
   if(state.dice === null || state.dice === undefined){
     dice = [];
   } else if(Array.isArray(state.dice)){
@@ -5691,24 +5782,23 @@ window.hydratePremiumState = function(state){
   } else if(typeof state.dice === 'object'){
     dice = Object.values(state.dice);
   }
-
-  selected = Array.isArray(state.selected) ? [...state.selected] : [];
+  if(Array.isArray(state.selected)) selected = [...state.selected];
   if(typeof state.roundPoints === 'number') roundPoints = state.roundPoints;
   if(typeof state.mustSecure === 'boolean') mustSecure = state.mustSecure;
   if(typeof state.hasRolledThisTurn === 'boolean') hasRolledThisTurn = state.hasRolledThisTurn;
 
-  // Lobby ausblenden, Spielfeld zeigen
+  // Lobby ausblenden, Spiel anzeigen
   const setup = document.getElementById('setupScreen');
-  if(setup) setup.style.display='none';
+  if(setup) setup.style.display = 'none';
   const lobby = document.getElementById('mpLobbyOverlay');
-  if(lobby) lobby.style.display='none';
+  if(lobby) lobby.style.display = 'none';
 
-  // Premium-UI aus gameState rendern
-  if(typeof renderPlayers==='function') renderPlayers();
-  if(typeof renderDice==='function') renderDice();
-  if(typeof renderStats==='function') renderStats();
+  // Premium-UI rendern
+  if(typeof renderPlayers === 'function') renderPlayers();
+  if(typeof renderDice === 'function') renderDice();
+  if(typeof renderStats === 'function') renderStats();
 
-  // Buttons sperren wenn nicht am Zug
+  // Buttons sperren wenn nicht dran
   const btnLabels = ['Würfeln','Sichern','Zug beenden'];
   document.querySelectorAll('button').forEach(btn=>{
     const txt = (btn.innerText||'').trim();
@@ -5718,16 +5808,17 @@ window.hydratePremiumState = function(state){
     }
   });
 
-  // Statusmeldung
-  if(typeof setStatus==='function'){
+  // Status anzeigen
+  if(typeof setStatus === 'function'){
     if(isMyTurn){
       setStatus('🎲 Du bist dran!');
     } else {
-      const active = playersArr.find(p=>p.id===state.activePlayerId);
-      setStatus('⏳ '+(active?.name||'Anderer Spieler')+' ist am Zug…');
+      const active = normalizePlayersArray(state.players).find(p=>p.id===state.activePlayerId);
+      setStatus('⏳ ' + (active?.name||'Anderer Spieler') + ' ist am Zug…');
     }
   }
 
+  // Nicht-KI-Spieler lassen KI nur auf dem Host laufen
   actionLocked = false;
   isRolling = false;
 };
@@ -5735,7 +5826,8 @@ window.hydratePremiumState = function(state){
 /* ── 3. SPIELER IDs INITIALISIEREN ── */
 window.initBridgeForHost = function(){
   window._activateBridge();
-  // Players-Map mit IDs sicherstellen
+  window._myPlayerIndex = 0; // Host ist immer Spieler 0
+  // IDs für alle Spieler setzen
   players.forEach((p,i)=>{
     if(!p.id){
       p.id = p.isAI
@@ -5747,12 +5839,13 @@ window.initBridgeForHost = function(){
   window.pushStateToFirebase();
 };
 
-window.initBridgeForGuest = function(){
+window.initBridgeForGuest = function(playerIndex){
   window._activateBridge();
-  console.log('[Bridge] Gast verbunden als', window.currentUserId);
+  window._myPlayerIndex = (typeof playerIndex === 'number') ? playerIndex : -1;
+  console.log('[Bridge] Gast verbunden als Spieler', window._myPlayerIndex);
 };
 
-/* ── 4. FIREBASE LISTENER (für alle Clients) ── */
+/* ── 4. FIREBASE LISTENER (für Gäste, zusätzlich zu Stage10) ── */
 window.addEventListener('load', ()=>{
   const ref = getGameRef();
   if(!ref) return;
@@ -5760,25 +5853,26 @@ window.addEventListener('load', ()=>{
   ref.on('value', snap=>{
     const state = snap.val();
     if(!state || state.phase !== 'playing') return;
+    if(!state.players || state.players.length === 0) return;
 
-    // Normalisiere players (Map oder Array)
-    const rawP = state.players;
-    const pArr = rawP
-      ? (Array.isArray(rawP) ? rawP.filter(Boolean) : Object.values(rawP).filter(Boolean))
-      : [];
-    if(pArr.length === 0) return;
+    // Bridge für Gast aktivieren sobald Spiel läuft
+    window._activateBridge();
 
-    // Mich im Spielerfeld suchen
-    const myId = window.currentUserId;
-    const amInGame = pArr.some(p=>p.id===myId);
-
-    // Bridge für Reconnect aktivieren
-    if(!window._bridgeActive && amInGame){
-      window._activateBridge();
+    // Spieler-Index aus ID ermitteln falls noch nicht gesetzt
+    if(window._myPlayerIndex === undefined || window._myPlayerIndex === -1){
+      const myId = window.currentUserId;
+      const idx = state.players.findIndex(p=>p.id===myId);
+      if(idx >= 0) window._myPlayerIndex = idx;
     }
 
-    // Hydration aufrufen (prüft intern _bridgeActive und amInGame)
-    window.hydratePremiumState(state);
+    const myId = window.currentUserId;
+    const isHost = state.players?.[0]?.id === myId;
+
+    // Gast: immer hydratisieren
+    // Host: nur wenn der State von woanders kam (anderer Timestamp)
+    if(!isHost || state.activePlayerId !== myId){
+      window.hydratePremiumState(state);
+    }
   });
 });
 
@@ -5796,15 +5890,18 @@ document.addEventListener('click', e=>{
   // Gast tritt bei → Bridge aktivieren
   if(txt === 'Beitreten' || btn.id === 'joinMainRoomBtn'){
     console.log('[Bridge] Gast tritt bei → Bridge aktiviert');
-    window._activateBridge();
-    // Spieler mergen (kein vollständiges Room-Replace)
-    if(typeof joinMainRoom === 'function') joinMainRoom();
+    window._bridgeActive = true;
   }
 
   // Host startet Spiel → Bridge aktivieren
   if(txt === 'Spiel starten' || btn.id === 'startMainGameBtn'){
     console.log('[Bridge] Host startet → Bridge aktiviert');
-    window._activateBridge();
+    window._bridgeActive = true;
+    setTimeout(()=>{
+      if(typeof players !== 'undefined' && players.length > 0){
+        window.initBridgeForHost();
+      }
+    }, 800);
   }
 }, true); // capture phase = vor allen anderen Listenern
 
@@ -5839,10 +5936,52 @@ window.getNextFreeRoom = async function(){
   return {id: ROOM_NAME_POOL[0].toLowerCase(), name: ROOM_NAME_POOL[0]};
 };
 
+/* ── 8. Auto-Reset bei hängendem alten Spielstand ── */
+window.addEventListener('load', ()=>{
+  setTimeout(async ()=>{
+    if(window._bridgeActive) return; // Aktives Spiel, nicht stören
+    try{
+      const db = firebase.database();
+      const snap = await db.ref('z10_games/duesseldorf').once('value');
+      const gs = snap.val();
+      if(gs && (gs.phase==='playing'||gs.phase==='gameover')){
+        console.warn('[Bridge] Alter Spielstand gefunden — wird automatisch gelöscht');
+        await db.ref('z10_games/duesseldorf').remove();
+      }
+      const rSnap = await db.ref('z10_rooms/duesseldorf').once('value');
+      const room = rSnap.val();
+      if(room && room.phase==='playing'){
+        await db.ref('z10_rooms/duesseldorf').update({phase:'waiting'});
+      }
+    }catch(e){}
+  }, 2000);
+});
+
 function showLobbyOverlay(){
   const o=document.getElementById('mpLobbyOverlay');
   if(o){o.style.display='flex';o.style.zIndex='999999';}
 }
+
+// Auto-Reset und Bar-Anzeige bei altem State
+setTimeout(async ()=>{
+  if(window._bridgeActive) return;
+  try{
+    const db=firebase.database();
+    const snap=await db.ref('z10_games/duesseldorf').once('value');
+    const gs=snap.val();
+    if(gs&&(gs.phase==='playing'||gs.phase==='gameover')){
+      // Alten State gefunden: Bar anzeigen statt direkt zu löschen
+      const bar=document.getElementById('backToLobbyBar');
+      if(bar) bar.style.display='flex';
+      // Nach 3 Sekunden automatisch löschen
+      setTimeout(async()=>{
+        await db.ref('z10_games/duesseldorf').remove().catch(()=>{});
+        await db.ref('z10_rooms/duesseldorf').update({phase:'waiting'}).catch(()=>{});
+        location.reload();
+      },3000);
+    }
+  }catch(e){}
+},1000);
 
 
 /* ── Raum-Spieleranzahl live aktualisieren ── */
@@ -5878,7 +6017,7 @@ window.addEventListener('load', ()=>{
   }, 1500);
 });
 
-
+console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
 
 })();
 </script>
@@ -5891,43 +6030,39 @@ window.Z10 = window.Z10 || {};
 
 window.Z10.normalizePlayers = function(players){
   if(!players) return {};
-  // Immer als Map zurückgeben
   if(Array.isArray(players)){
     const obj = {};
-    players.filter(Boolean).forEach(p=>{ if(p && p.id) obj[p.id] = p; });
+    players.filter(Boolean).forEach(p=>{
+      if(p && p.id) obj[p.id] = p;
+    });
     return obj;
   }
-  return players; // bereits Map
+  return players;
 };
 
 window.Z10.playersArray = function(players){
-  if(!players) return [];
-  if(Array.isArray(players)) return players.filter(Boolean);
-  return Object.values(players).filter(Boolean);
+  return Object.values(window.Z10.normalizePlayers(players));
 };
 
-// Persistente ID — immer aus z10_player_id (nie aus z10UserId o.ä.)
 window.Z10.localPlayerId = localStorage.getItem('z10_player_id');
 
 window.Z10.ensurePlayerIdentity = function(name){
-  // ID NIEMALS neu erzeugen — immer aus localStorage
   const id = localStorage.getItem('z10_player_id');
-  const playerName = name || localStorage.getItem('z10_name') || localStorage.getItem('z10_player_name') || 'Spieler';
-  return { id, name: playerName };
+  const playerName = name || localStorage.getItem('z10_player_name') || 'Spieler';
+
+  return {
+    id,
+    name: playerName
+  };
 };
 
 window.Z10.mergePlayerIntoRoom = function(room){
   room = room || {};
-  // players immer als Map behandeln
-  if(Array.isArray(room.players)){
-    const map = {};
-    room.players.filter(Boolean).forEach(p=>{ if(p&&p.id) map[p.id]=p; });
-    room.players = map;
-  } else {
-    room.players = room.players || {};
-  }
+
+  room.players = window.Z10.normalizePlayers(room.players);
 
   const me = window.Z10.ensurePlayerIdentity();
+
   room.players[me.id] = {
     ...(room.players[me.id] || {}),
     ...me,
@@ -5947,7 +6082,7 @@ window.Z10.isMyTurn = function(gameState){
   return gameState.activePlayerId === window.Z10.localPlayerId;
 };
 
-
+console.log('[Z10] playerId multiplayer bridge active');
 
 })();
 </script>
@@ -5973,6 +6108,61 @@ window.Z10.isMyTurn = function(gameState){
     return players[0] || null;
   };
 })();
+</script>
+
+
+<script>
+window.addEventListener('DOMContentLoaded', async () => {
+
+  try{
+
+    if(window.MultiplayerStore){
+      MultiplayerStore.subscribe();
+    }
+
+  }catch(e){
+    console.warn('[BOOT]', e);
+  }
+
+});
+</script>
+
+
+<script>
+window.addEventListener('load', () => {
+
+  setTimeout(async () => {
+
+    try{
+
+      if(
+        window.gameState &&
+        !window.gameState.activePlayerId
+      ){
+
+        const players = getOrderedPlayers();
+
+        if(players.length){
+
+          const first = players[0];
+
+          window.gameState.activePlayerId = first.id;
+
+          if(window.MultiplayerStore){
+            await MultiplayerStore.patch({
+              activePlayerId: first.id
+            });
+          }
+        }
+      }
+
+    }catch(e){
+      console.warn('[TURN FALLBACK]', e);
+    }
+
+  }, 1200);
+
+});
 </script>
 
 </body>
