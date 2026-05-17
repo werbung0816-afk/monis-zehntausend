@@ -6177,5 +6177,115 @@ window.mergePlayersFromSharedState = function(sharedPlayers){
 })();
 </script>
 
+
+<script>
+/* ===== PLAYER MERGE HOTFIX ===== */
+
+(function(){
+
+  function normalizePlayers(players){
+
+    if(!players) return {};
+
+    if(Array.isArray(players)){
+
+      const out = {};
+
+      players.filter(Boolean).forEach((p,i) => {
+
+        const id =
+          p.id ||
+          p.playerId ||
+          ('legacy_' + i);
+
+        out[id] = {
+          ...p,
+          id
+        };
+      });
+
+      return out;
+    }
+
+    const out = {};
+
+    Object.entries(players).forEach(([k,v]) => {
+
+      if(!v) return;
+
+      out[k] = {
+        ...v,
+        id: v.id || k
+      };
+    });
+
+    return out;
+  }
+
+  window.safeMergePlayer = async function(player){
+
+    if(!window.firebase || !firebase.database) return;
+
+    const ref = firebase.database().ref('z10_games/duesseldorf');
+
+    const snap = await ref.get();
+
+    const state = snap.val() || {};
+
+    state.players = normalizePlayers(state.players);
+
+    state.players[player.id] = {
+      ...(state.players[player.id] || {}),
+      ...player,
+      id: player.id,
+      online: true,
+      lastSeen: Date.now()
+    };
+
+    if(!state.activePlayerId){
+      state.activePlayerId = player.id;
+    }
+
+    await ref.update({
+      players: state.players,
+      activePlayerId: state.activePlayerId
+    });
+
+    window.gameState.players = state.players;
+    window.gameState.activePlayerId = state.activePlayerId;
+  };
+
+  const originalJoinRoom = window.joinRoom;
+
+  window.joinRoom = async function(){
+
+    try{
+
+      const playerName =
+        localStorage.getItem('z10_player_name') ||
+        document.getElementById('playerNameInput')?.value ||
+        'Spieler';
+
+      await safeMergePlayer({
+        id: window.localPlayerId,
+        name: playerName
+      });
+
+    }catch(e){
+      console.warn('[JOIN HOTFIX]', e);
+    }
+
+    if(typeof originalJoinRoom === 'function'){
+      try{
+        return await originalJoinRoom.apply(this, arguments);
+      }catch(e){
+        console.warn('[ORIGINAL JOIN]', e);
+      }
+    }
+  };
+
+})();
+</script>
+
 </body>
 </html>
