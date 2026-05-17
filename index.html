@@ -3839,5 +3839,56 @@ window.showLobbyOverlay = function(){
 })();
 </script>
 
+
+<script>
+async function createSharedRoom(){
+
+  try{
+
+    const playerName =
+      document.querySelector('#playerNameInput')?.value?.trim()
+      || 'Host';
+
+    const roomState = {
+      phase: 'lobby',
+      round: 1,
+      dice: [],
+      scores: {},
+      activePlayerId: window.localPlayerId,
+      settings: {
+        mode: 'quick'
+      },
+      players: {
+        [window.localPlayerId]: {
+          id: window.localPlayerId,
+          playerId: window.localPlayerId,
+          name: playerName,
+          score: 0,
+          isHost: true
+        }
+      }
+    };
+
+    await firebase.database()
+      .ref('z10_games/duesseldorf')
+      .set(roomState);
+
+    window.gameState = roomState;
+
+    if(typeof renderFromSharedState === 'function'){
+      renderFromSharedState(roomState);
+    }
+
+    alert('Raum erstellt');
+
+  }catch(err){
+
+    console.error(err);
+    alert('Fehler beim Erstellen');
+
+  }
+}
+</script>
 </body>
+
 </html>
