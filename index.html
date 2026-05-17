@@ -6132,5 +6132,46 @@ console.log('[Z10] playerId multiplayer bridge active');
 })();
 </script>
 
+
+<script>
+/* Intro Splash Emergency Fix */
+
+window.hideIntroSplash = function(){
+
+  const splash = document.getElementById('introSplash');
+
+  if(!splash) return;
+
+  splash.classList.add('hide');
+
+  setTimeout(() => {
+    splash.style.display = 'none';
+  }, 900);
+};
+
+window.addEventListener('load', () => {
+
+  setTimeout(() => {
+
+    try{
+
+      const setup = document.getElementById('setupScreen');
+
+      if(
+        setup &&
+        getComputedStyle(setup).display !== 'none'
+      ){
+        hideIntroSplash();
+      }
+
+    }catch(e){
+      console.warn('[INTRO FIX]', e);
+    }
+
+  }, 1200);
+
+});
+</script>
+
 </body>
 </html>
