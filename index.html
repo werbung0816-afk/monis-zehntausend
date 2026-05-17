@@ -6388,5 +6388,51 @@ window.mergePlayersFromSharedState = function(sharedPlayers){
 })();
 </script>
 
+
+<script>
+/* ===== ACTION OWNERSHIP GUARDS ===== */
+
+(function(){
+
+  function denyAction(name){
+
+    console.warn(
+      '[TURN BLOCKED]',
+      name,
+      'active:',
+      window.gameState?.activePlayerId,
+      'local:',
+      window.localPlayerId
+    );
+
+    return false;
+  }
+
+  function protectAction(fnName){
+
+    const original = window[fnName];
+
+    if(typeof original !== 'function') return;
+
+    window[fnName] = async function(){
+
+      if(!window.isMyTurn?.()){
+        return denyAction(fnName);
+      }
+
+      return original.apply(this, arguments);
+    };
+  }
+
+  protectAction('rollDice');
+  protectAction('saveScore');
+  protectAction('bankPoints');
+  protectAction('endTurn');
+  protectAction('finishTurn');
+  protectAction('holdScore');
+
+})();
+</script>
+
 </body>
 </html>
