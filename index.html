@@ -1379,16 +1379,21 @@ function normalizePlayersArray(players){
 
 
 
+
+
+
 <script>
-window.ensureFirebaseReady = function(){
+window.__z10FirebaseReady = false;
 
-  try{
+window.getFirebaseDB = function(){
 
-    if(window.firebase && firebase.apps && firebase.apps.length){
-      return firebase.app();
-    }
+  if(!window.firebase){
+    throw new Error('Firebase SDK fehlt');
+  }
 
-    const firebaseConfig = {
+  if(!firebase.apps || !firebase.apps.length){
+
+    const firebaseConfig = window.firebaseConfig || {
       apiKey: "demo",
       authDomain: "demo.firebaseapp.com",
       databaseURL: "https://demo-default-rtdb.firebaseio.com",
@@ -1398,17 +1403,12 @@ window.ensureFirebaseReady = function(){
       appId: "1:123456789:web:demo"
     };
 
-    if(window.firebase && firebase.initializeApp){
-      firebase.initializeApp(firebaseConfig);
-      console.log('[Firebase] initialized');
-      return firebase.app();
-    }
-
-  }catch(err){
-    console.error('[Firebase bootstrap error]', err);
+    firebase.initializeApp(firebaseConfig);
+    console.log('[Z10] Firebase initialized');
   }
 
-  return null;
+  window.__z10FirebaseReady = true;
+  return firebase.database();
 };
 </script>
 
@@ -3893,9 +3893,12 @@ window.showLobbyOverlay = function(){
 
 
 <script>
+
 async function createSharedRoom(){
 
   try{
+
+    const db = window.getFirebaseDB();
 
     const playerName =
       document.querySelector('#playerNameInput')?.value?.trim()
@@ -3906,32 +3909,22 @@ async function createSharedRoom(){
       round: 1,
       dice: [],
       scores: {},
-      activePlayerId: window.localPlayerId,
+      activePlayerId: window.localPlayerId || ('host_' + Date.now()),
       settings: {
         mode: 'quick'
       },
-      players: {
-        [window.localPlayerId]: {
-          id: window.localPlayerId,
-          playerId: window.localPlayerId,
-          name: playerName,
-          score: 0,
-          isHost: true
-        }
-      }
+      players: {}
     };
 
-    
-    window.ensureFirebaseReady();
+    roomState.players[roomState.activePlayerId] = {
+      id: roomState.activePlayerId,
+      playerId: roomState.activePlayerId,
+      name: playerName,
+      score: 0,
+      isHost: true
+    };
 
-    if(!window.firebase || !firebase.database){
-      throw new Error('Firebase nicht verfügbar');
-    }
-
-    await firebase.database()
-    
-      .ref('z10_games/duesseldorf')
-      .set(roomState);
+    await db.ref('z10_games/duesseldorf').set(roomState);
 
     window.gameState = roomState;
 
@@ -3943,11 +3936,12 @@ async function createSharedRoom(){
 
   }catch(err){
 
-    console.error(err);
+    console.error('[CREATE ROOM FAILED]', err);
     alert('Fehler beim Erstellen');
 
   }
 }
+
 </script>
 </body>
 
