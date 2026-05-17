@@ -1378,40 +1378,6 @@ function normalizePlayersArray(players){
 
 
 
-
-
-
-
-<script>
-window.__z10FirebaseReady = false;
-
-window.getFirebaseDB = function(){
-
-  if(!window.firebase){
-    throw new Error('Firebase SDK fehlt');
-  }
-
-  if(!firebase.apps || !firebase.apps.length){
-
-    const firebaseConfig = window.firebaseConfig || {
-      apiKey: "demo",
-      authDomain: "demo.firebaseapp.com",
-      databaseURL: "https://demo-default-rtdb.firebaseio.com",
-      projectId: "demo",
-      storageBucket: "demo.appspot.com",
-      messagingSenderId: "123456789",
-      appId: "1:123456789:web:demo"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    console.log('[Z10] Firebase initialized');
-  }
-
-  window.__z10FirebaseReady = true;
-  return firebase.database();
-};
-</script>
-
 </head>
 <body>
 <div id="backToLobbyBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:rgba(10,6,20,.97);backdrop-filter:blur(10px);padding:8px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(139,92,246,.3)">
@@ -3538,24 +3504,6 @@ cursor:pointer;
 ">
 Aktualisieren
 </button>
-<div style="margin-top:18px;">
-<button id="createRoomBtn"
-onclick="createSharedRoom()"
-style="
-width:100%;
-padding:18px;
-border:none;
-border-radius:18px;
-font-size:24px;
-font-weight:800;
-cursor:pointer;
-background:linear-gradient(90deg,#53f6ff,#8f5fff);
-color:white;
-display:block;
-">
-🎲 Raum erstellen
-</button>
-</div>
 </div>
 
 <div id="publicRoomList"></div>
@@ -3893,56 +3841,51 @@ window.showLobbyOverlay = function(){
 
 
 <script>
-
 async function createSharedRoom(){
 
-  try{
+    try{
 
-    const db = window.getFirebaseDB();
+        const playerName =
+            document.querySelector('#playerNameInput')?.value?.trim()
+            || "Host";
 
-    const playerName =
-      document.querySelector('#playerNameInput')?.value?.trim()
-      || 'Host';
+        const roomId = "duesseldorf";
 
-    const roomState = {
-      phase: 'lobby',
-      round: 1,
-      dice: [],
-      scores: {},
-      activePlayerId: window.localPlayerId || ('host_' + Date.now()),
-      settings: {
-        mode: 'quick'
-      },
-      players: {}
-    };
+        const roomState = {
 
-    roomState.players[roomState.activePlayerId] = {
-      id: roomState.activePlayerId,
-      playerId: roomState.activePlayerId,
-      name: playerName,
-      score: 0,
-      isHost: true
-    };
+            phase: "lobby",
+            roomId,
+            activePlayerId: window.localPlayerId,
 
-    await db.ref('z10_games/duesseldorf').set(roomState);
+            players: {
+                [window.localPlayerId]: {
+                    id: window.localPlayerId,
+                    playerId: window.localPlayerId,
+                    name: playerName,
+                    score: 0,
+                    isHost: true
+                }
+            }
+        };
 
-    window.gameState = roomState;
+        await window.db.ref("z10_games/" + roomId).set(roomState);
 
-    if(typeof renderFromSharedState === 'function'){
-      renderFromSharedState(roomState);
+        window.gameState = roomState;
+
+        alert("Raum erstellt");
+
+        if(typeof loadRooms === 'function'){
+            loadRooms();
+        }
+
+    }catch(err){
+
+        console.error("[CREATE ROOM ERROR]", err);
+        alert("Fehler beim Erstellen");
+
     }
-
-    alert('Raum erstellt');
-
-  }catch(err){
-
-    console.error('[CREATE ROOM FAILED]', err);
-    alert('Fehler beim Erstellen');
-
-  }
 }
-
 </script>
-</body>
 
+</body>
 </html>
