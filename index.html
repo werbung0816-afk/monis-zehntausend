@@ -6518,5 +6518,123 @@ window.mergePlayersFromSharedState = function(sharedPlayers){
 })();
 </script>
 
+
+<script>
+/* ===== LEGACY PLAYER ID MIGRATION ===== */
+
+(function(){
+
+  window.normalizePlayerCollection = function(players){
+
+    const normalized = {};
+
+    const source = Array.isArray(players)
+      ? players.filter(Boolean)
+      : Object.values(players || {}).filter(Boolean);
+
+    source.forEach((p, index) => {
+
+      const legacyId =
+        String(
+          p?.id ||
+          p?.playerId ||
+          ''
+        );
+
+      let stableId = legacyId;
+
+      if(
+        !stableId ||
+        stableId.startsWith('u_') ||
+        stableId.startsWith('legacy_')
+      ){
+
+        stableId =
+          'p_' +
+          (
+            p?.name ||
+            ('player' + index)
+          )
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g,'')
+          .slice(0,10);
+      }
+
+      normalized[stableId] = {
+        ...p,
+        id: stableId,
+        playerId: stableId,
+        name:
+          p?.name ||
+          ('Spieler_' + index)
+      };
+    });
+
+    return normalized;
+  };
+
+  window.migrateLegacyRoom = async function(){
+
+    if(!window.firebase || !firebase.database) return;
+
+    const ref =
+      firebase.database()
+      .ref('z10_games/duesseldorf');
+
+    const snap = await ref.get();
+
+    const state = snap.val() || {};
+
+    const normalizedPlayers =
+      normalizePlayerCollection(
+        state.players
+      );
+
+    let activeId =
+      String(state.activePlayerId || '');
+
+    if(
+      !normalizedPlayers[activeId]
+    ){
+
+      const first =
+        Object.values(normalizedPlayers)[0];
+
+      if(first){
+        activeId = first.id;
+      }
+    }
+
+    await ref.update({
+      players: normalizedPlayers,
+      activePlayerId: activeId
+    });
+
+    window.gameState.players =
+      normalizedPlayers;
+
+    window.gameState.activePlayerId =
+      activeId;
+
+    console.log(
+      '[PLAYER MIGRATION COMPLETE]',
+      normalizedPlayers
+    );
+  };
+
+  window.addEventListener('load', () => {
+
+    setTimeout(() => {
+
+      migrateLegacyRoom()
+      .catch(console.warn);
+
+    }, 1200);
+
+  });
+
+})();
+</script>
+
 </body>
 </html>
