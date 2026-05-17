@@ -1067,30 +1067,6 @@ top:10px;
 <script src="https://unpkg.com/firebase@10.8.1/firebase-database-compat.js"></script>
 <script src="https://unpkg.com/firebase@10.8.1/firebase-auth-compat.js"></script>
 
-<script>
-window.gameState = {
- roomCode:'',
- players:[],
- activePlayer:0,
- dice:[1,1,1,1,1,1],
- selected:[],
- roundScore:0,
- totalScores:{},
- phase:'waiting',
- winner:null
-};
-
-window.currentUserId = localStorage.getItem('z10UserId') || (
- 'u_' + Math.random().toString(36).slice(2)
-);
-
-localStorage.setItem(
- 'z10UserId',
- window.currentUserId
-);
-
-console.log('Z10 Multiplayer Bootstrap Active');
-</script>
 
 
 <style id="responsive-overrides">
@@ -1264,61 +1240,6 @@ function normalizePlayersArray(players){
 </style>
 
 
-<script>
-(function(){
-  // Persistente Spieleridentität
-  const existingId = localStorage.getItem('z10_player_id');
-  const existingName = localStorage.getItem('z10_player_name');
-
-  if(!existingId){
-    localStorage.setItem('z10_player_id','p_'+Math.random().toString(36).slice(2,10));
-  }
-
-  // Globale Helfer
-  window.Z10 = window.Z10 || {};
-
-  window.Z10.getPlayerId = function(){
-    return localStorage.getItem('z10_player_id');
-  };
-
-  window.Z10.getPlayerName = function(){
-    return localStorage.getItem('z10_player_name') || '';
-  };
-
-  window.Z10.setPlayerName = function(name){
-    if(name && name.trim()){
-      localStorage.setItem('z10_player_name', name.trim());
-    }
-  };
-
-  // Input automatisch persistieren
-  document.addEventListener('input', function(e){
-    if(e.target && (
-      e.target.id === 'playerNameInput' ||
-      e.target.name === 'playerName'
-    )){
-      window.Z10.setPlayerName(e.target.value);
-    }
-  });
-
-  // Nach DOM Ready Namen wiederherstellen
-  window.addEventListener('DOMContentLoaded', function(){
-    const input =
-      document.getElementById('playerNameInput') ||
-      document.querySelector('input[name="playerName"]');
-
-    if(input && existingName){
-      input.value = existingName;
-    }
-  });
-
-  // Nur ein aktiver Raum
-  window.Z10_SINGLE_ROOM = 'duesseldorf';
-
-})();
-</script>
-
-
 <style>
 @media (max-width: 1100px){
   .layout{
@@ -1456,68 +1377,6 @@ function normalizePlayersArray(players){
 </style>
 
 
-<script>
-/* ===== TURN OWNERSHIP FIX ===== */
-
-window.getOrderedPlayers = function(){
-
-  const statePlayers = window.gameState?.players || {};
-
-  if(Array.isArray(statePlayers)){
-    return statePlayers.filter(Boolean);
-  }
-
-  return Object.values(statePlayers).filter(Boolean);
-};
-
-window.getCurrentPlayer = function(){
-
-  const players = getOrderedPlayers();
-
-  return players.find(
-    p => p && p.id === window.gameState.activePlayerId
-  );
-};
-
-window.advanceTurnByPlayerId = async function(){
-
-  const players = getOrderedPlayers();
-
-  if(!players.length) return;
-
-  let currentIndex = players.findIndex(
-    p => p && p.id === window.gameState.activePlayerId
-  );
-
-  if(currentIndex < 0){
-    currentIndex = 0;
-  }
-
-  const nextIndex = (currentIndex + 1) % players.length;
-
-  const nextPlayer = players[nextIndex];
-
-  if(!nextPlayer) return;
-
-  window.gameState.activePlayerId = nextPlayer.id;
-
-  if(window.MultiplayerStore){
-    await MultiplayerStore.patch({
-      activePlayerId: nextPlayer.id
-    });
-  }
-};
-
-window.isMyTurn = function(){
-
-  return (
-    String(window.gameState?.activePlayerId || '') ===
-    String(window.localPlayerId || '')
-  );
-};
-
-/* ===== END TURN FIX ===== */
-</script>
 
 </head>
 <body>
@@ -2006,14 +1865,12 @@ document.getElementById('status').innerText=t;
 
 function rollDice(){
 
-// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
-if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  const isAITurn = players?.[currentPlayer]?.isAI === true;
-  if(!isAITurn && currentPlayer !== window._myPlayerIndex){
-    const activeName = players?.[currentPlayer]?.name || 'Anderer Spieler';
-    setStatus("⏳ " + activeName + " ist am Zug...");
-    return;
-  }
+// Multiplayer Turn-Guard
+if(!window._mpTurnAllowed?.()){
+  const gs = window.gameState;
+  const activeP = gs ? Object.values(gs.players||{}).find(p=>p.id===gs.activePlayerId) : null;
+  setStatus('⏳ '+(activeP?.name||'Anderer Spieler')+' ist am Zug…');
+  return;
 }
 
 // Harte Sperre gegen illegales Nachwürfeln
@@ -2147,11 +2004,8 @@ function bankPoints(){
 actionLocked=false;
 isRolling=false;
 
-// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
-if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
-  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
-}
+// Multiplayer Turn-Guard
+if(!window._mpTurnAllowed?.()) return;
 
 if(selectedPoints<=0){
 setStatus("Keine gültigen Würfel gewählt.");
@@ -2310,11 +2164,8 @@ if(window.pushStateToFirebase) window.pushStateToFirebase();
 function endTurn(){
 actionLocked=false;
 
-// Multiplayer Turn-Guard (Index-basiert) - KI-Spieler dürfen immer
-if(window._bridgeActive && typeof window._myPlayerIndex === 'number' && window._myPlayerIndex >= 0){
-  const isAITurn2 = players?.[currentPlayer]?.isAI === true;
-  if(!isAITurn2 && currentPlayer !== window._myPlayerIndex) return;
-}
+// Multiplayer Turn-Guard
+if(!window._mpTurnAllowed?.()) return;
 
 if(roundPoints<250){
 setStatus("⚠️ Du hast noch keine 250 Punkte erreicht.");
@@ -2749,6 +2600,7 @@ renderStats();
 
 
 </script>
+
 
 
 
@@ -3487,24 +3339,6 @@ document.getElementById('victoryTestBtn').click();
 </script>
 
 
-<script>
-window.renderFromGlobalState = function(){
-
- if(!window.gameState) return;
-
- console.log(
-   'Rendering Multiplayer State',
-   window.gameState
- );
-
-};
-
-window.addEventListener('load',()=>{
- console.log('Premium Multiplayer Merge Loaded');
-});
-</script>
-
-
 <!-- MULTIPLAYER LOBBY -->
 <div id="mpLobbyOverlay" style="
 position:fixed;
@@ -3682,2956 +3516,325 @@ Aktualisieren
 </div>
 
 <script>
-(function(){
-
-console.log('MULTIPLAYER LOBBY STAGE2 ACTIVE');
-
-window.mpRooms = [];
-
-function renderRooms(){
-
- const container =
- document.getElementById('publicRoomList');
-
- if(!container) return;
-
- container.innerHTML = '';
-
- if(window.mpRooms.length === 0){
-
-   container.innerHTML = `
-   <div style="
-   padding:20px;
-   border-radius:16px;
-   background:#171129;
-   ">
-   Keine offenen Räume
-   </div>
-   `;
-
-   return;
- }
-
- window.mpRooms.forEach(room=>{
-
-   const div = document.createElement('div');
-
-   div.style.cssText = `
-   background:#171129;
-   border-radius:16px;
-   padding:16px;
-   margin-bottom:12px;
-   display:flex;
-   justify-content:space-between;
-   align-items:center;
-   `;
-
-   div.innerHTML = `
-   <div>
-     <div style="font-size:20px;font-weight:bold">
-       ${room.name}
-     </div>
-
-     <div style="opacity:.7;margin-top:6px">
-       ${room.players}/${room.maxPlayers} Spieler
-     </div>
-   </div>
-
-   <button
-     style="
-     padding:12px 16px;
-     border:none;
-     border-radius:12px;
-     background:#8b5cf6;
-     color:white;
-     font-weight:bold;
-     cursor:pointer;
-     "
-     onclick="console.log('Join-System folgt im nächsten Merge-Schritt')"
-   >
-   Beitreten
-   </button>
-   `;
-
-   container.appendChild(div);
-
- });
-
-}
-
-window.addEventListener('load',()=>{
-
- const createBtn =
- document.getElementById('createRoomBtn');
-
- const refreshBtn =
- document.getElementById('refreshRoomsBtn');
-
- const closeBtn =
- document.getElementById('closeMpLobby');
-
- createBtn?.addEventListener('click',()=>{
-
-   const maxPlayers =
-   parseInt(
-     document.getElementById('mpMaxPlayers').value
-   );
-
-   const allowAI =
-   document.getElementById('mpAllowAI').checked;
-
-   window.mpRooms.unshift({
-     name:'Zehntausend Lobby',
-     players:1,
-     maxPlayers,
-     allowAI
-   });
-
-   renderRooms();
-
- });
-
- refreshBtn?.addEventListener('click',()=>{
-
-   renderRooms();
-
- });
-
- closeBtn?.addEventListener('click',()=>{
-
-   document.getElementById('mpLobbyOverlay')
-   .style.display = 'none';
-
- });
-
- renderRooms();
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('FIREBASE ROOM SYNC ACTIVE');
-
-const firebaseConfig = {
-apiKey:"AIzaSyC5wUppAxAE_LrEpr8FdLafqNuyic59HV8",
-authDomain:"romme-hand.firebaseapp.com",
-databaseURL:"https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app",
-projectId:"romme-hand",
-storageBucket:"romme-hand.firebasestorage.app",
-messagingSenderId:"848283747928",
-appId:"1:848283747928:web:5ebdf681451ea87bdac2d"
-};
-
-if(!firebase.apps.length){
- firebase.initializeApp(firebaseConfig);
-}
-
-const db = firebase.database();
-
-window.currentPlayerName =
-localStorage.getItem('z10_name') || '';
-
-// Name in Lobby-Input eintragen sobald DOM bereit (mehrfach versuchen)
-function prefillName(){
-  const inp = document.getElementById('mpPlayerNameInput');
-  if(!inp) return;
-  let saved = localStorage.getItem('z10_name')||'';
-  // Alte zufällige Namen bereinigen
-  if(/^Spieler_?\d+$/i.test(saved)) saved = '';
-  if(saved) inp.value = saved;
-}
-setTimeout(prefillName, 300);
-setTimeout(prefillName, 1000);
-setTimeout(prefillName, 2500);
-
-function roomsRef(){
- return db.ref('z10_rooms');
-}
-
-function renderRooms(rooms){
-
- const container =
- document.getElementById('publicRoomList');
-
- if(!container) return;
-
- container.innerHTML = '';
-
- const list = Object.entries(rooms || {});
-
- if(list.length === 0){
-
-   container.innerHTML = `
-   <div style="
-   padding:20px;
-   border-radius:16px;
-   background:#171129;
-   ">
-   Keine offenen Räume
-   </div>
-   `;
-
-   return;
- }
-
- list.forEach(([roomId,room])=>{
-
-   const div = document.createElement('div');
-
-   div.style.cssText = `
-   background:#171129;
-   border-radius:16px;
-   padding:16px;
-   margin-bottom:12px;
-   display:flex;
-   justify-content:space-between;
-   align-items:center;
-   gap:20px;
-   `;
-
-   div.innerHTML = `
-   <div style="flex:1">
-     <div style="font-size:20px;font-weight:bold">
-       ${room.name || 'Düsseldorf'}
-     </div>
-     <div style="opacity:.7;margin-top:4px;font-size:14px">
-       ${(room.players||[]).length}/${room.maxPlayers} Spieler
-     </div>
-     ${(() => {
-       const rawP = room.players||[];
-       const pArr = Array.isArray(rawP) ? rawP : Object.values(rawP);
-       const realP = pArr.filter(p=>p&&p.name&&!/^Spieler_?\d+$/i.test(p.name));
-       return realP.length > 0 ? `
-       <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px">
-         ${realP.map(p=>`
-           <span style="background:rgba(139,92,246,.2);border:1px solid rgba(139,92,246,.3);
-             border-radius:8px;padding:3px 10px;font-size:12px;color:rgba(255,255,255,.8)">
-             ${p.name}
-           </span>`).join('')}
-       </div>` : '';
-     })()}
-   </div>
-
-   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;flex-shrink:0">
-   <button
-     data-room="${roomId}"
-     class="joinRoomBtn"
-     style="padding:12px 16px;border:none;border-radius:12px;
-     background:#8b5cf6;color:white;font-weight:bold;cursor:pointer"
-   >Beitreten</button>
-
-   <button
-     id="startMainGameBtn"
-     onclick="startSharedGameNow()"
-     style="padding:12px 16px;border:none;border-radius:12px;
-     background:linear-gradient(135deg,#16a34a,#15803d);
-     color:white;font-weight:bold;cursor:pointer;
-     box-shadow:0 4px 12px rgba(22,163,74,.3)"
-   >🎮 Spiel starten</button>
-   </div>
-   `;
-
-   container.appendChild(div);
-
- });
-
- document.querySelectorAll('.joinRoomBtn')
- .forEach(btn=>{
-
-   btn.onclick = ()=>{
-
-     const roomId =
-     btn.getAttribute('data-room');
-
-     joinRoom(roomId);
-
-   };
-
- });
-
-}
-
-function subscribeRooms(){
-
- roomsRef().on('value',(snap)=>{
-
-   const rooms = snap.val() || {};
-
-   renderRooms(rooms);
-
- });
-
-}
-
-function createRoom(){
-
- const maxPlayers =
- parseInt(
-  document.getElementById('mpMaxPlayers').value
- );
-
- const allowAI =
- document.getElementById('mpAllowAI').checked;
-
- const roomId =
- 'room_' + Math.random().toString(36).slice(2,8);
-
- const room = {
-   id:roomId,
-   name:'Zehntausend Lobby',
-   host:window.currentPlayerName,
-   maxPlayers,
-   allowAI,
-   phase:'waiting',
-   players:[
-     {
-       id:window.currentUserId,
-       name:window.currentPlayerName,
-       type:'human'
-     }
-   ]
- };
-
- roomsRef().child(roomId).set(room);
-
-}
-
-function joinRoom(roomId){
-
- roomsRef().child(roomId)
- .once('value')
- .then(snap=>{
-
-   const room = snap.val();
-
-   if(!room) return;
-
-   room.players = room.players || [];
-
-   const exists =
-   room.players.find(
-    p=>p.id===window.currentUserId
-   );
-
-   if(!exists){
-
-     room.players.push({
-       id:window.currentUserId,
-       name:window.currentPlayerName,
-       type:'human'
-     });
-
-   }
-
-   roomsRef().child(roomId).set(room);
-
-   console.log(
-    'Beigetreten: '
-    + room.name
-   );
-
- });
-
-}
-
-window.addEventListener('load',()=>{
-
- document.getElementById('createRoomBtn')
- ?.addEventListener('click',createRoom);
-
- subscribeRooms();
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('START GAME SYNC ACTIVE');
-
-window.currentRoomId = null;
-
-function showStartButton(roomId, room){
-
- const existing =
- document.getElementById('hostStartBtn');
-
- if(existing) existing.remove();
-
- if(!room) return;
-
- const isHost =
- room.host === window.currentPlayerName;
-
- if(!isHost) return;
-
- const overlay =
- document.querySelector('#mpLobbyOverlay h1');
-
- if(!overlay) return;
-
- const btn = document.createElement('button');
-
- btn.id = 'hostStartBtn';
-
- btn.innerText = 'Spiel starten';
-
- btn.style.cssText = `
- margin-left:20px;
- padding:12px 18px;
- border:none;
- border-radius:12px;
- background:#16a34a;
- color:white;
- font-weight:bold;
- cursor:pointer;
- `;
-
- btn.onclick = ()=>{
-
-   firebase.database()
-   .ref('z10_rooms/'+roomId)
-   .update({
-     phase:'playing'
-   });
-
- };
-
- overlay.parentNode.appendChild(btn);
-
-}
-
-function watchRoom(roomId){
-
- firebase.database()
- .ref('z10_rooms/'+roomId)
- .on('value',(snap)=>{
-
-   const room = snap.val();
-
-   if(!room) return;
-
-   window.currentRoomId = roomId;
-
-   showStartButton(roomId, room);
-
-   if(room.phase === 'playing'){
-
-     startSharedGame(room);
-
-   }
-
- });
-
-}
-
-window.startSharedGame = function(room){
-
- console.log('STARTING SHARED GAME', room);
-
- const overlay =
- document.getElementById('mpLobbyOverlay');
-
- if(overlay && window._bridgeActive){
-   overlay.style.display = 'none';
- }
-
- window.gameState = {
-   roomId:room.id,
-   players:room.players || [],
-   activePlayer:0,
-   dice:[1,1,1,1,1,1],
-   selected:[],
-   roundScore:0,
-   totalScores:{},
-   phase:'playing',
-   winner:null
- };
-
- console.log(
-   'Gemeinsames Spiel gestartet: '
-   + room.name
- );
-
-};
-
-const oldJoin = window.joinRoom;
-
-// Name aus Input-Feld in currentPlayerName schreiben
-window.applyLobbyName = function applyLobbyName(){
-  const inp = document.getElementById('mpPlayerNameInput');
-  const errEl = document.getElementById('mpNameError');
-  if(!inp) return true;
-  const name = inp.value.trim();
-  if(!name){
-    if(errEl) errEl.style.display='block';
-    inp.style.borderColor='rgba(239,68,68,.7)';
-    inp.focus();
-    return false;
-  }
-  if(errEl) errEl.style.display='none';
-  inp.style.borderColor='rgba(139,92,246,.4)';
-  window.currentPlayerName = name;
-  localStorage.setItem('z10_name', name);
-  return true;
-}
-function applyLobbyName(){ return window.applyLobbyName(); }
-
-window.joinRoom = function(roomId){
-  if(!applyLobbyName()) return;
-
- firebase.database()
- .ref('z10_rooms/'+roomId)
- .once('value')
- .then(snap=>{
-
-   const room = snap.val();
-
-   if(!room) return;
-
-   room.players = room.players || [];
-
-   const exists =
-   room.players.find(
-     p=>p.id===window.currentUserId
-   );
-
-   if(!exists){
-
-     room.players.push({
-       id:window.currentUserId,
-       name:window.currentPlayerName,
-       type:'human'
-     });
-
-   }
-
-   firebase.database()
-   .ref('z10_rooms/'+roomId)
-   .set(room);
-
-   watchRoom(roomId);
-
- });
-
-};
-
-// Stage2 createRoom deaktiviert — nur Düsseldorf-Raum wird genutzt
-const oldCreate = window.createRoom;
-
-window.createRoom = function(){
-  console.log('[Bridge] createRoom blockiert — Einzel-Raum-System aktiv');
-  // Namen, Spieler etc. werden von Stage10 gehandhabt
-};
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('STAGE5 LOBBY OVERRIDE ACTIVE');
-
-const ROOM_NAMES = [
- 'Düsseldorf',
- 'Bensheim',
- 'Alsbach',
- 'Griesheim',
- 'Zwingenberg',
- 'Mainz'
-];
-
-function getRoomName(existingRooms){
-
- const used =
- Object.values(existingRooms || {})
- .map(r=>r.name);
-
- const free =
- ROOM_NAMES.find(n=>!used.includes(n));
-
- return free || ('Lobby '+Math.floor(Math.random()*999));
-
-}
-
-window.createRoom = async function(){
-
- const db = firebase.database();
-
- const snap =
- await db.ref('z10_rooms').once('value');
-
- const rooms = snap.val() || {};
-
- const roomId =
- 'room_' + Math.random().toString(36).slice(2,8);
-
- const room = {
-   id:roomId,
-   name:getRoomName(rooms),
-   hostId:window.currentUserId,
-   createdAt:Date.now(),
-   lastActivity:Date.now(),
-   maxPlayers:parseInt(
-     document.getElementById('mpMaxPlayers').value
-   ),
-   allowAI:
-     document.getElementById('mpAllowAI').checked,
-   phase:'waiting',
-   players:[{
-     id:window.currentUserId,
-     name:window.currentPlayerName,
-     type:'human'
-   }]
- };
-
- await db.ref('z10_rooms/'+roomId).set(room);
-
- window.currentRoomId = roomId;
-
- watchRoom(roomId);
-
-};
-
-window.watchRoom = function(roomId){
-
- firebase.database()
- .ref('z10_rooms/'+roomId)
- .on('value',(snap)=>{
-
-   const room = snap.val();
-
-   if(!room) return;
-
-   room.lastActivity = Date.now();
-
-   const old =
-   document.getElementById('hostStartBtn');
-
-   if(old) old.remove();
-
-   const isHost =
-   room.hostId === window.currentUserId;
-
-   if(isHost){
-
-     const top =
-     document.querySelector(
-      '#mpLobbyOverlay h1'
-     )?.parentNode;
-
-     if(top){
-
-       const btn =
-       document.createElement('button');
-
-       btn.id = 'hostStartBtn';
-
-       btn.innerText = 'Spiel starten';
-
-       btn.style.cssText = `
-       margin-left:20px;
-       padding:12px 18px;
-       border:none;
-       border-radius:12px;
-       background:#16a34a;
-       color:white;
-       font-weight:bold;
-       cursor:pointer;
-       `;
-
-       btn.onclick = ()=>{
-
-         firebase.database()
-         .ref('z10_rooms/'+roomId)
-         .update({
-           phase:'playing',
-           lastActivity:Date.now()
-         });
-
-       };
-
-       top.appendChild(btn);
-
-     }
-
-   }
-
-   if(room.phase === 'playing'){
-
-     document.getElementById(
-      'mpLobbyOverlay'
-     ).style.display='none';
-
-     console.log(
-      'Gemeinsames Spiel startet jetzt'
-     );
-
-   }
-
- });
-
-};
-
-window.joinRoom = async function(roomId){
-
- // Name direkt aus Input lesen
- const nameInp = document.getElementById('mpPlayerNameInput');
- if(nameInp && nameInp.value.trim()){
-   window.currentPlayerName = nameInp.value.trim();
-   localStorage.setItem('z10_name', window.currentPlayerName);
- }
-
- const db = firebase.database();
-
- const ref =
- db.ref('z10_rooms/'+roomId);
-
- const snap =
- await ref.once('value');
-
- const room = snap.val();
-
- if(!room) return;
-
- room.players = room.players || [];
-
- const exists =
- room.players.find(
-  p=>p.id===window.currentUserId
- );
-
- if(!exists){
-
-   room.players.push({
-     id:window.currentUserId,
-     name:window.currentPlayerName,
-     type:'human'
-   });
-
- }
-
- room.lastActivity = Date.now();
-
- await ref.set(room);
-
- window.currentRoomId = roomId;
-
- watchRoom(roomId);
-
-};
-
-async function cleanupRooms(){
-
- const db = firebase.database();
-
- const snap =
- await db.ref('z10_rooms').once('value');
-
- const rooms = snap.val() || {};
-
- const now = Date.now();
-
- Object.entries(rooms).forEach(([id,room])=>{
-
-   const empty =
-   !room.players || room.players.length===0;
-
-   const stale =
-   now - (room.lastActivity || 0)
-   > 1000 * 60 * 30;
-
-   if(empty || stale){
-
-     db.ref('z10_rooms/'+id).remove();
-
-   }
-
- });
-
-}
-
-window.addEventListener('load',()=>{
-
- cleanupRooms();
-
- document
- .getElementById('createRoomBtn')
- ?.addEventListener('click',(e)=>{
-
-   e.stopImmediatePropagation();
-
-   createRoom();
-
- });
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('STAGE6 LEGACY START BLOCK ACTIVE');
-
-window.__MULTIPLAYER_MODE__ = true;
-
-function killLegacyStartButtons(){
-
- const selectors = [
-  '#startBtn',
-  '.startBtn',
-  '[onclick*="startGame"]',
-  '[onclick*="startLocal"]',
-  '[onclick*="showPlayer"]'
- ];
-
- selectors.forEach(sel=>{
-
-   document.querySelectorAll(sel)
-   .forEach(el=>{
-
-     el.onclick = null;
-
-     el.addEventListener(
-      'click',
-      e=>{
-        if(window.__MULTIPLAYER_MODE__){
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-        }
-      },
-      true
-     );
-
-   });
-
- });
-
-}
-
-function hideLegacyLobby(){
-
- const texts = [
-  '2 Spieler',
-  '3 Spieler',
-  '4 Spieler'
- ];
-
- document.querySelectorAll('*')
- .forEach(el=>{
-
-   if(
-    texts.includes(
-      el.textContent?.trim()
-    )
-   ){
-
-     const parent =
-     el.closest('div');
-
-     if(parent){
-
-       parent.style.display='none';
-
-     }
-
-   }
-
- });
-
-}
-
-window.startSharedGame = function(room){
-
- console.log('MULTIPLAYER START ACTIVE', room);
-
- window.__MULTIPLAYER_RUNNING__ = true;
-
- killLegacyStartButtons();
-
- hideLegacyLobby();
-
- const overlay =
- document.getElementById('mpLobbyOverlay');
-
- if(overlay && window._bridgeActive){
-   overlay.style.display='none';
- }
-
- window.gameState = {
-   roomId:room.id,
-   players:room.players || [],
-   activePlayer:0,
-   dice:[1,1,1,1,1,1],
-   selected:[],
-   roundScore:0,
-   totalScores:{},
-   phase:'playing',
-   winner:null
- };
-
- console.log(
-  'Shared GameState',
-  window.gameState
- );
-
- const badge =
- document.createElement('div');
-
- badge.innerHTML =
- '🎲 MULTIPLAYER AKTIV';
-
- badge.style.cssText = `
- position:fixed;
- top:10px;
- right:10px;
- z-index:999999;
- background:#16a34a;
- color:white;
- padding:10px 14px;
- border-radius:12px;
- font-weight:bold;
- font-family:Arial;
- box-shadow:0 8px 20px rgba(0,0,0,.4);
- `;
-
- document.body.appendChild(badge);
-
-};
-
-window.addEventListener('load',()=>{
-
- setTimeout(()=>{
-
-   killLegacyStartButtons();
-
- },1000);
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('STAGE7 LEGACY AUTOBOOT BLOCK ACTIVE');
-
-window.__MULTIPLAYER_RUNNING__ = false;
-
-window.stopLegacyBoot = function(){
-
- if(!window.__MULTIPLAYER_RUNNING__) return;
-
- console.log('Blocking legacy autoboot');
-
- const blockedNames = [
-  'init',
-  'boot',
-  'bootGame',
-  'showStartScreen',
-  'initMenu',
-  'startMenu',
-  'setupSinglePlayer',
-  'startLocalGame'
- ];
-
- blockedNames.forEach(name=>{
-
-   if(typeof window[name] === 'function'){
-
-     const old = window[name];
-
-     window[name] = function(){
-
-       if(window.__MULTIPLAYER_RUNNING__){
-         console.warn('Blocked legacy:', name);
-         return;
-       }
-
-       return old.apply(this, arguments);
-
-     };
-
-   }
-
- });
-
-};
-
-const oldAdd =
-document.addEventListener.bind(document);
-
-document.addEventListener = function(type, listener, opts){
-
- if(
-   window.__MULTIPLAYER_RUNNING__
-   &&
-   type === 'DOMContentLoaded'
- ){
-   console.warn('Blocked DOMContentLoaded listener');
-   return;
- }
-
- return oldAdd(type, listener, opts);
-
-};
-
-window.addEventListener('load',()=>{
-
- window.stopLegacyBoot();
-
-});
-
-const oldStartShared =
-window.startSharedGame;
-
-window.startSharedGame = function(room){
-
- window.__MULTIPLAYER_RUNNING__ = true;
-
- window.stopLegacyBoot();
-
- const oldOverlay =
- document.querySelectorAll(
-  '[class*="menu"],[id*="menu"],[class*="start"],[id*="start"]'
- );
-
- oldOverlay.forEach(el=>{
-
-   const text =
-   (el.innerText || '').toLowerCase();
-
-   if(
-    text.includes('2 spieler')
-    || text.includes('3 spieler')
-    || text.includes('4 spieler')
-    || text.includes('einzelspieler')
-   ){
-     el.style.display='none';
-   }
-
- });
-
- if(typeof oldStartShared === 'function'){
-   oldStartShared(room);
- }
-
-};
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('STAGE8 ROOT APP OVERRIDE ACTIVE');
-
-window.__MULTIPLAYER_ROOT__ = true;
-
-function hideLegacyRootUI(){
-
- const hideTexts = [
-  '2 Spieler',
-  '3 Spieler',
-  '4 Spieler',
-  'Spielversion',
-  'Einzelspieler',
-  'Schnelle 10'
- ];
-
- document.querySelectorAll('div,section,article')
- .forEach(el=>{
-
-   const txt =
-   (el.innerText || '').trim();
-
-   const matched =
-   hideTexts.some(t=>txt.includes(t));
-
-   if(matched){
-
-     if(
-      !el.closest('#mpLobbyOverlay')
-     ){
-       el.style.display='none';
-     }
-
-   }
-
- });
-
-}
-
-function forceLobbyAsRoot(){
-
- const lobby =
- document.getElementById('mpLobbyOverlay');
-
- if(lobby){
-
-   lobby.style.display='flex';
-   lobby.style.zIndex='999999';
-
- }
-
-}
-
-function blockLegacyGameBoot(){
-
- const blocked = [
-  'startGame',
-  'startLocalGame',
-  'showStartScreen',
-  'showPlayerSelection',
-  'showModeSelection',
-  'renderStartMenu',
-  'bootGame',
-  'initGame'
- ];
-
- blocked.forEach(name=>{
-
-   if(typeof window[name] === 'function'){
-
-     const original = window[name];
-
-     window[name] = function(){
-
-       if(window.__MULTIPLAYER_ROOT__){
-
-         console.warn(
-          'Blocked legacy root call:',
-          name
-         );
-
-         return;
-
-       }
-
-       return original.apply(this, arguments);
-
-     };
-
-   }
-
- });
-
-}
-
-function cleanupOldRooms(){
-
- if(!window.firebase) return;
-
- const db = firebase.database();
-
- db.ref('z10_rooms')
- .once('value')
- .then(snap=>{
-
-   const rooms = snap.val() || {};
-   const now = Date.now();
-
-   Object.entries(rooms)
-   .forEach(([id,room])=>{
-
-     const stale =
-     now - (room.lastActivity || 0)
-     > 1000 * 60 * 60;
-
-     if(stale){
-
-       db.ref('z10_rooms/'+id)
-       .remove();
-
-     }
-
-   });
-
- });
-
-}
-
-window.addEventListener('load',()=>{
-
- forceLobbyAsRoot();
-
- hideLegacyRootUI();
-
- blockLegacyGameBoot();
-
- cleanupOldRooms();
-
- setInterval(()=>{
-
-   hideLegacyRootUI();
-
- },1500);
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('STAGE9 SHARED GAMESTATE ACTIVE');
-
-if(!window.firebase) return;
-
-const db = firebase.database();
-
-window.activeRoomId = null;
-window.gameState = null;
-
-function gameRef(roomId){
- return db.ref('z10_games/' + roomId);
-}
-
-window.createSharedGameState = async function(room){
-
- const state = {
-   roomId: room.id,
-   players: room.players || [],
-   activePlayerIndex: 0,
-   activePlayerId: room.players?.[0]?.id || null,
-   dice: [1,1,1,1,1,1],
-   selected: [],
-   roundScore: 0,
-   totalScores: {},
-   mode: room.mode || 'classic',
-   phase: 'playing',
-   updatedAt: Date.now()
- };
-
- state.players.forEach(p=>{
-   state.totalScores[p.id] = 0;
- });
-
- await gameRef(room.id).set(state);
-
-};
-
-window.mountSharedGame = function(state){
-  // Nur ausführen wenn Bridge aktiv (User hat Lobby genutzt)
-  if(!window._bridgeActive) return;
-
-  window.gameState = state;
-
-  const overlay = document.getElementById('mpLobbyOverlay');
-  if(overlay && window._bridgeActive) overlay.style.display = 'none';
-
-  // Badge aktualisieren (kein Overlay erstellen)
-  let badge = document.getElementById('sharedGameBadge');
-  if(!badge){
-    badge = document.createElement('div');
-    badge.id = 'sharedGameBadge';
-    badge.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;background:#16a34a;color:white;padding:8px 14px;border-radius:10px;font-weight:bold;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.3)';
-    document.body.appendChild(badge);
-  }
-  const current = normalizePlayersArray(state.players).find(p=>p.id===state.activePlayerId);
-  badge.textContent = '🎲 ' + (current?.name || 'Multiplayer');
-
-  if(window.hydratePremiumState) window.hydratePremiumState(state);
-};
-
-function disableTurnButtons(state){
-
- const myTurn =
- state.activePlayerId === window.currentUserId;
-
- const labels = [
-  'Würfeln',
-  'Sichern',
-  'Zug beenden'
- ];
-
- document.querySelectorAll('button')
- .forEach(btn=>{
-
-   const txt =
-   (btn.innerText || '').trim();
-
-   if(labels.includes(txt)){
-
-     btn.disabled = !myTurn;
-
-     btn.style.opacity =
-      myTurn ? '1' : '.45';
-
-     btn.style.pointerEvents =
-      myTurn ? 'auto' : 'none';
-
-   }
-
- });
-
-}
-
-window.watchSharedGame = function(roomId){
-
- window.activeRoomId = roomId;
-
- gameRef(roomId)
- .on('value',(snap)=>{
-
-   const state = snap.val();
-
-   if(!state) return;
-
-   mountSharedGame(state);
-
- });
-
-};
-
-window.startRoomGame = async function(roomId){
-
- const roomSnap =
- await db.ref('z10_rooms/' + roomId)
- .once('value');
-
- const room = roomSnap.val();
-
- if(!room) return;
-
- await createSharedGameState(room);
-
- await db.ref('z10_rooms/' + roomId)
- .update({
-   phase:'playing',
-   lastActivity:Date.now()
- });
-
- watchSharedGame(roomId);
-
-};
-
-window.submitSharedAction = async function(action){
-
- if(!window.gameState) return;
-
- if(
-  window.gameState.activePlayerId
-  !== window.currentUserId
- ){
-   return;
- }
-
- const state =
- JSON.parse(JSON.stringify(window.gameState));
-
- if(action.type === 'END_TURN'){
-
-   const next =
-   (state.activePlayerIndex + 1)
-   % state.players.length;
-
-   state.activePlayerIndex = next;
-
-   state.activePlayerId =
-   state.players[next].id;
-
- }
-
- if(action.type === 'ROLL_DICE'){
-
-   state.dice =
-   Array.from({length:6})
-   .map(()=>1+Math.floor(Math.random()*6));
-
- }
-
- state.updatedAt = Date.now();
-
- await gameRef(state.roomId)
- .set(state);
-
-};
-
-window.addEventListener('load',()=>{
-
- document.querySelectorAll('button')
- .forEach(btn=>{
-
-   const txt =
-   (btn.innerText || '').trim();
-
-   if(txt === 'Spiel starten'){
-
-     btn.onclick = async ()=>{
-
-       const roomCards =
-       document.querySelectorAll(
-        '[data-room-id]'
-       );
-
-       const own =
-       Array.from(roomCards)
-       .find(c=>
-         c.dataset.hostId
-         === window.currentUserId
-       );
-
-       if(!own) return;
-
-       await startRoomGame(
-        own.dataset.roomId
-       );
-
-     };
-
-   }
-
- });
-
-});
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-console.log('FINAL STAGE10 SINGLE ROOM MULTIPLAYER');
-
-if(!window.firebase) return;
-
-const db = firebase.database();
-
-const ROOM_ID = 'duesseldorf';
-
-window.currentUserId =
- localStorage.getItem('z10_uid')
- || ('u_' + Math.random().toString(36).slice(2,10));
-
-localStorage.setItem(
- 'z10_uid',
- window.currentUserId
-);
-
-window.currentPlayerName =
- localStorage.getItem('z10_name')
- || ('Spieler_' + Math.floor(Math.random()*999));
-
-function roomRef(){
- return db.ref('z10_rooms/' + ROOM_ID);
-}
-
-function gameRef(){
- return db.ref('z10_games/' + ROOM_ID);
-}
-
-async function ensureMainRoom(){
-
- // Alte Räume aggressiv löschen (außer Düsseldorf)
- try{
-   const allSnap = await db.ref('z10_rooms').once('value');
-   const all = allSnap.val() || {};
-   for(const [key] of Object.entries(all)){
-     if(key !== ROOM_ID) await db.ref('z10_rooms/'+key).remove();
-   }
- }catch(e){}
-
- // Alten gameover-State löschen
- try{
-   const gSnap = await gameRef().once('value');
-   const gs = gSnap.val();
-   if(gs && gs.phase === 'gameover'){
-     await gameRef().remove();
-   }
- }catch(e){ console.warn('cleanup:', e); }
-
- const snap = await roomRef().once('value');
-
- if(snap.exists()){
-   // Ghost-Spieler (Spieler_XXX) aus bestehendem Raum entfernen
-   const existingRoom = snap.val();
-   const rawPlayers = existingRoom ? (existingRoom.players||[]) : [];
-   const playerArr = Array.isArray(rawPlayers)
-     ? rawPlayers
-     : Object.values(rawPlayers);
-   const clean = playerArr.filter(p=>
-     p && p.name && !/^Spieler_?\d+$/i.test(p.name)
-   );
-   // Immer players neu setzen um sauberen Stand zu haben
-   await roomRef().child('players').set(clean);
-   return;
- }
-
- await roomRef().set({
-   id:ROOM_ID,
-   name:'Düsseldorf',
-   phase:'waiting',
-   status:'active',
-   maxPlayers: (() => { const s=document.getElementById('mpMaxPlayers'); return s?parseInt(s.value):4; })(),
-   allowAI:true,
-   createdAt:Date.now(),
-   lastActivity:Date.now(),
-   players:[]
- });
-
-}
-
-window.joinMainRoom = async function joinMainRoom(){
-
- // Immer zuerst Namen aus Eingabefeld übernehmen
- if(typeof applyLobbyName === 'function') applyLobbyName();
-
- const snap = await roomRef().once('value');
-
- const room = snap.val();
-
- room.players = room.players || [];
-
- const exists =
- room.players.find(
-  p=>p.id===window.currentUserId
- );
-
- if(!exists){
-
-   room.players.push({
-     id:window.currentUserId,
-     name:window.currentPlayerName,
-     type:'human'
-   });
-
- } else {
-   // Name aktualisieren falls geändert
-   exists.name = window.currentPlayerName;
- }
-
- room.lastActivity = Date.now();
-
- await roomRef().set(room);
-
-}
-
-function renderSingleRoom(room){
-
- const list =
- document.getElementById('publicRoomList');
-
- if(!list) return;
-
- const players =
- room.players || [];
-
- const joined =
- players.find(
-  p=>p.id===window.currentUserId
- );
-
- const isHost =
- players[0]?.id === window.currentUserId;
-
- list.innerHTML = `
- <div
- style="
- background:#171129;
- border-radius:20px;
- padding:20px;
- "
- >
-   <div style="
-   display:flex;
-   justify-content:space-between;
-   align-items:center;
-   gap:20px;
-   flex-wrap:wrap;
-   ">
-
-     <div>
-       <div style="
-       font-size:28px;
-       font-weight:bold;
-       ">
-       Düsseldorf
-       </div>
-
-       <div style="
-       opacity:.7;
-       margin-top:6px;
-       ">
-       ${players.length}/10 Spieler
-       </div>
-
-       <div style="
-       opacity:.7;
-       margin-top:4px;
-       ">
-       Status: ${room.phase}
-       </div>
-     </div>
-
-     <div style="
-     display:flex;
-     gap:12px;
-     flex-wrap:wrap;
-     ">
-
-       ${
-         joined
-         ? ''
-         : `
-         <button
-          id="joinMainRoomBtn"
-          style="
-          padding:12px 16px;
-          border:none;
-          border-radius:12px;
-          background:#8b5cf6;
-          color:white;
-          font-weight:bold;
-          cursor:pointer;
-          "
-         >
-         Beitreten
-         </button>
-         `
-       }
-
-       <button
-         id="startMainGameBtn"
-         style="
-         padding:12px 20px;
-         border:none;
-         border-radius:12px;
-         background:linear-gradient(135deg,#16a34a,#15803d);
-         color:white;
-         font-weight:bold;
-         font-size:15px;
-         cursor:pointer;
-         box-shadow:0 4px 15px rgba(22,163,74,.3);
-         "
-        >
-        🎮 Spiel starten
-        </button>
-
-     </div>
-
-   </div>
-
-   <div style="
-   margin-top:18px;
-   display:flex;
-   flex-wrap:wrap;
-   gap:10px;
-   ">
-
-   ${
-     players.map(p=>`
-       <div style="
-       background:#241d40;
-       padding:10px 14px;
-       border-radius:12px;
-       ">
-       ${p.name}
-       </div>
-     `).join('')
-   }
-
-   </div>
-
- </div>
- `;
-
- document
- .getElementById('joinMainRoomBtn')
- ?.addEventListener('click',joinMainRoom);
-
- document
- .getElementById('startMainGameBtn')
- ?.addEventListener('click',startSharedGameNow);
-
-}
-
-window.startSharedGameNow = async function startSharedGameNow(){
- try{
-
- // Name aus Eingabefeld holen
- const nameInp = document.getElementById('mpPlayerNameInput');
- const typedName = nameInp ? nameInp.value.trim() : '';
- if(!typedName){
-   if(nameInp){ nameInp.style.borderColor='rgba(239,68,68,.7)'; nameInp.focus(); }
-   console.log('Bitte zuerst einen Namen eingeben!');
-   return;
- }
- window.currentPlayerName = typedName;
- localStorage.setItem('z10_name', typedName);
-
- // (applyLobbyName bereits oben inline erledigt)
-
- // Wenn noch nicht beigetreten, erst beitreten
- const preSnap = await roomRef().once('value');
- const preRoom = preSnap.val();
- const myId = window.currentUserId;
- if(preRoom && !(preRoom.players||[]).some(p=>p&&p.id===myId)){
-   await joinMainRoom().catch(()=>{});
- }
-
- const roomSnap =
- await roomRef().once('value');
-
- const room = roomSnap.val();
- const roomPlayers = room.players || [];
-
- // ── Lokale players-Engine aus Firebase-Raum befüllen ──
- // So kennt die Premium-Engine die richtigen Spieler
- if(typeof players !== 'undefined'){
-   players = roomPlayers.map((p,i)=>({
-     name: p.name || ('Spieler '+(i+1)),
-     score: 0,
-     isAI: !!p.isAI,
-     id: p.id || ('p_'+i)
-   }));
-   // Fehlende Slots mit KI auffüllen
-   const sel = document.getElementById('mpMaxPlayers');
-   const maxP = sel ? parseInt(sel.value) : (room.maxPlayers || 4);
-   const allowAI = document.getElementById('mpAllowAI')?.checked !== false;
-   const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
-   const shuffled = [...AI_POOL].sort(()=>Math.random()-.5);
-   const humanNames = players.filter(p=>!p.isAI).map(p=>p.name.toLowerCase().trim());
-   const aiPool = shuffled.filter(n=>!humanNames.includes(n.toLowerCase()));
-   let ai=0;
-   while(allowAI && players.length < maxP){
-     const aiN = aiPool[ai] || ('KI'+(ai+1)); ai++;
-     players.push({name:aiN+' (KI)',score:0,isAI:true,id:'ai_'+(ai)});
-   }
-   if(typeof currentPlayer !== 'undefined') currentPlayer = 0;
-   if(typeof roundPoints !== 'undefined') roundPoints = 0;
-   if(typeof dice !== 'undefined') dice = [];
-   if(typeof selected !== 'undefined') selected = [];
-   if(typeof mustSecure !== 'undefined') mustSecure = false;
-   if(typeof hasRolledThisTurn !== 'undefined') hasRolledThisTurn = false;
- }
-
- const state = {
-   roomId: ROOM_ID,
-   phase: 'playing',
-   currentPlayer: 0,
-   activePlayerIndex: 0,
-   activePlayerId: roomPlayers[0]?.id || (players[0]?.id) || null,
-   players: players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI,id:p.id})),
-   dice: [],
-   selected: [],
-   roundPoints: 0,
-   mustSecure: false,
-   hasRolledThisTurn: false,
-   totalScores: {},
-   updatedAt: Date.now()
- };
-
- state.players.forEach(p=>{ state.totalScores[p.id||p.name] = 0; });
-
- // Bridge für Host aktivieren BEVOR Firebase-Write
- if(window._isBridgeActive !== undefined) window._isBridgeActive = true;
- window._bridgeActive = true;
-
- await gameRef().set(state);
- await roomRef().update({phase:'playing', lastActivity:Date.now()});
-
- // Bridge initialisieren → pusht State
- setTimeout(()=>{
-   if(window.initBridgeForHost) window.initBridgeForHost();
-   const setup = document.getElementById('setupScreen');
-   if(setup) setup.style.display='none';
-   const lobby = document.getElementById('mpLobbyOverlay');
-   if(lobby) lobby.style.display='none';
-   if(typeof renderPlayers==='function') renderPlayers();
-   if(typeof renderDice==='function') renderDice();
-   if(typeof renderStats==='function') renderStats();
-   if(typeof setStatus==='function') setStatus('🎲 Du bist dran — würfle!');
- }, 300);
-
- }catch(err){
-   console.error('startSharedGameNow failed:',err);
-   console.log('Fehler beim Starten: '+err.message);
- }
-}
-
-function renderGame(state){
- // Nur aktiv wenn Bridge (User hat Lobby genutzt)
- if(!window._bridgeActive) return;
- if(window.hydratePremiumState) window.hydratePremiumState(state);
-
- const overlay = document.getElementById('mpLobbyOverlay');
- if(overlay && window._bridgeActive) overlay.style.display='none';
-
- const panel = document.getElementById('sharedGamePanel');
- if(panel) panel.style.display='none';
-
- if(false){ // disabled old overlay
- let panel2 = null;
-
- const active =
- state.players.find(
-  p=>p.id===state.activePlayerId
- );
-
- const myTurn =
- state.activePlayerId === window.currentUserId;
-
- panel.innerHTML = `
- <h1>🎲 Multiplayer aktiv</h1>
-
- <div style="margin:20px 0">
- Aktiver Spieler:
- <b>${active?.name || '-'}</b>
- </div>
-
- <div style="
- display:flex;
- gap:12px;
- margin:20px 0;
- flex-wrap:wrap;
- ">
- ${
-   state.dice.map(d=>`
-    <div style="
-    width:70px;
-    height:70px;
-    background:white;
-    color:black;
-    border-radius:16px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    font-size:34px;
-    font-weight:bold;
-    ">
-    ${d}
-    </div>
-   `).join('')
- }
- </div>
-
- <div style="
- display:flex;
- gap:12px;
- margin-top:20px;
- ">
-   <button
-    id="rollDiceBtn"
-    ${myTurn ? '' : 'disabled'}
-    style="
-    padding:14px 18px;
-    border:none;
-    border-radius:12px;
-    background:${myTurn ? '#8b5cf6' : '#555'};
-    color:white;
-    font-weight:bold;
-    cursor:pointer;
-    ">
-    Würfeln
-   </button>
-
-   <button
-    id="endTurnBtn"
-    ${myTurn ? '' : 'disabled'}
-    style="
-    padding:14px 18px;
-    border:none;
-    border-radius:12px;
-    background:${myTurn ? '#16a34a' : '#555'};
-    color:white;
-    font-weight:bold;
-    cursor:pointer;
-    ">
-    Zug beenden
-   </button>
- </div>
- `;
-
- document
- .getElementById('rollDiceBtn')
- ?.addEventListener('click',rollDice);
-
- document
- .getElementById('endTurnBtn')
- ?.addEventListener('click',endTurn);
-
- } // end disabled block
-
-}
-
-async function rollDice(){
-
- const snap = await gameRef().once('value');
-
- const state = snap.val();
-
- if(
-  state.activePlayerId
-  !== window.currentUserId
- ) return;
-
- state.dice =
- Array.from({length:6})
- .map(()=>1+Math.floor(Math.random()*6));
-
- state.updatedAt = Date.now();
-
- await gameRef().set(state);
-
-}
-
-async function endTurn(){
-
- const snap = await gameRef().once('value');
-
- const state = snap.val();
-
- if(
-  state.activePlayerId
-  !== window.currentUserId
- ) return;
-
- const next =
- (state.activePlayerIndex + 1)
- % state.players.length;
-
- state.activePlayerIndex = next;
- state.activePlayerId =
- state.players[next].id;
-
- state.updatedAt = Date.now();
-
- await gameRef().set(state);
-
-}
-
-window.addEventListener('load',async ()=>{
-
- await ensureMainRoom();
-
- roomRef().on('value',snap=>{
-
-   const room = snap.val();
-
-   if(!room) return;
-
-   renderSingleRoom(room);
-
- });
-
- gameRef().on('value',snap=>{
-
-   const state = snap.val();
-
-   if(!state) return;
-
-   renderGame(state);
-
- });
-
-});
-
-})();
-</script>
-
-
-<!-- Stage11 removed - replaced by bridge -->
-
-
-<script>
 /* ══════════════════════════════════════════════════════════════
-   BRIDGE: Verbindet lokale Premium-Engine mit Firebase gameState
-   Alle Clients rendern aus demselben geteilten State.
+   ZEHNTAUSEND — CLEAN MULTIPLAYER
+   Einzige Wahrheit : Firebase z10_games/duesseldorf
+   Alle Writes      : MultiplayerStore.patch()
+   Alle Reads       : window.gameState
+   Spieler-Struktur : { playerId: {...} } (Map, kein Array)
    ══════════════════════════════════════════════════════════════ */
 (function(){
+'use strict';
 
-/* MutationObserver: verhindert dass Lobby versteckt wird solange _bridgeActive=false */
-document.addEventListener('DOMContentLoaded',()=>{
-  const lobby = document.getElementById('mpLobbyOverlay');
-  if(!lobby) return;
-  const obs = new MutationObserver(()=>{
-    if(!window._bridgeActive && lobby.style.display === 'none'){
-      lobby.style.display = 'flex';
-    }
-  });
-  obs.observe(lobby, {attributes:true, attributeFilter:['style']});
-  window._lobbyObserver = obs;
-  // Lobby immer sichtbar bis User aktiv beitritt
-  lobby.style.display = 'flex';
-  lobby.style.zIndex = '999999';
-});
+const DB_PATH   = 'z10_games/duesseldorf';
+const ROOM_PATH = 'z10_rooms/duesseldorf';
 
-/* Bridge deaktiviert Lobby-Observer wenn User beitritt */
-window._activateBridge = function(){
-  window._bridgeActive = true;
-  if(window._lobbyObserver) window._lobbyObserver.disconnect();
-};
+function _db(){ return window.firebase?.database?.(); }
+function gameRef(){ return _db()?.ref(DB_PATH); }
+function roomRef(){ return _db()?.ref(ROOM_PATH); }
 
-const ROOM_ID = 'duesseldorf';
-let _gameRef = null;
-let _isBridgeActive = false;
-let _lastTs = 0;
-
-function getGameRef(){
-  if(_gameRef) return _gameRef;
-  if(!window.firebase) return null;
-  _gameRef = firebase.database().ref('z10_games/' + ROOM_ID);
-  return _gameRef;
+/* ── Lobby-Name ── */
+function getLobbyName(){
+  return (document.getElementById('mpPlayerNameInput')?.value||'').trim();
+}
+function saveName(n){ localStorage.setItem('z10_name',n); }
+function showNameError(){
+  const e = document.getElementById('mpNameError');
+  if(e) e.style.display='block';
+}
+function prefillLobbyName(){
+  const inp = document.getElementById('mpPlayerNameInput');
+  if(!inp) return;
+  const s = localStorage.getItem('z10_name')||'';
+  if(s && !/^Spieler_?\d+$/i.test(s)) inp.value = s;
 }
 
-/* ── 1. STATE → FIREBASE (nach jeder lokalen Aktion) ── */
-window.pushStateToFirebase = function(){
-  if(!window._bridgeActive) return;
-  const ref = getGameRef();
-  if(!ref) return;
+/* ── JOIN: nur eigenen Eintrag mergen — kein set(room) ── */
+window.joinSharedRoom = async function(){
+  const name = getLobbyName();
+  if(!name){ showNameError(); return; }
+  saveName(name);
+  const myId = window.localPlayerId;
+  if(!_db()) return;
+  await roomRef().child('players/'+myId)
+    .update({ id:myId, name, online:true, lastSeen:Date.now() });
+  await roomRef().update({ lastActivity:Date.now() });
+  // Listener für Spielstart aktivieren
+  window.MultiplayerStore.subscribe();
+};
+
+/* ── START: Host startet das Spiel ── */
+window.startSharedGame = async function(){
+  const name = getLobbyName();
+  if(!name){ showNameError(); return; }
+  saveName(name);
+  if(!_db()) return;
+
+  const myId = window.localPlayerId;
+
+  // Host in Raum eintragen (falls noch nicht)
+  await roomRef().child('players/'+myId)
+    .update({ id:myId, name, online:true, lastSeen:Date.now() });
+
+  // Alle Raum-Spieler laden
+  const snap = await roomRef().once('value');
+  const room = snap.val() || {};
+  const rawP = room.players || {};
+  let pArr = Array.isArray(rawP)
+    ? rawP.filter(Boolean)
+    : Object.values(rawP).filter(Boolean);
+
+  // KI auffüllen
+  const maxP    = parseInt(document.getElementById('mpMaxPlayers')?.value||4);
+  const allowAI = document.getElementById('mpAllowAI')?.checked !== false;
+  const AI_POOL = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
+  const humanNames = pArr.filter(p=>!p.isAI).map(p=>(p.name||'').toLowerCase());
+  const aiPool = AI_POOL.filter(n=>!humanNames.includes(n.toLowerCase()));
+  let ai=0;
+  while(allowAI && pArr.length < maxP && ai < aiPool.length){
+    pArr.push({ id:'ai_'+ai+'_'+Date.now(), name:aiPool[ai]+' (KI)', isAI:true });
+    ai++;
+  }
+
+  // Spieler-Map aufbauen (nie Array!)
+  const playersMap = {};
+  pArr.forEach(p=>{
+    playersMap[p.id] = { id:p.id, name:p.name, score:0, isAI:!!p.isAI, online:true };
+  });
+
+  const firstId = pArr[0]?.id || myId;
+  const mode    = document.querySelector('input[name="gameMode"]:checked')?.value || 'full';
 
   const state = {
-    currentPlayer,
-    dice: [...dice],
-    selected: [...selected],
+    phase           : 'playing',
+    activePlayerId  : firstId,
+    players         : playersMap,
+    dice            : null,
+    selected        : null,
+    roundPoints     : 0,
+    mustSecure      : false,
+    hasRolledThisTurn: false,
+    mode,
+    updatedAt       : Date.now()
+  };
+
+  // Einmaliges set() beim Spielstart ist korrekt (neues Spiel)
+  await gameRef().set(state);
+  await roomRef().update({ phase:'playing', lastActivity:Date.now() });
+
+  window._mpActive = true;
+  hydrateLocalEngine(state);
+  hideLobby();
+};
+
+/* ── HYDRATE: Firebase State → lokale Engine-Variablen ── */
+function hydrateLocalEngine(state){
+  if(!state || state.phase !== 'playing') return;
+
+  const myId = window.localPlayerId;
+  const pArr = Object.values(state.players || {}).filter(Boolean);
+  if(!pArr.length) return;
+
+  // Globale Engine-Variablen aus Firebase befüllen
+  players = pArr.map(p=>({
+    name : p.name  || 'Spieler',
+    score: p.score || 0,
+    isAI : !!p.isAI,
+    id   : p.id
+  }));
+
+  const idx = players.findIndex(p=>p.id===state.activePlayerId);
+  if(idx >= 0) currentPlayer = idx;
+
+  if(!state.dice) dice = [];
+  else if(Array.isArray(state.dice)) dice = [...state.dice];
+  else dice = Object.values(state.dice);
+
+  selected          = Array.isArray(state.selected) ? [...state.selected] : [];
+  if(typeof state.roundPoints       === 'number') roundPoints       = state.roundPoints;
+  if(typeof state.mustSecure        === 'boolean') mustSecure        = state.mustSecure;
+  if(typeof state.hasRolledThisTurn === 'boolean') hasRolledThisTurn = state.hasRolledThisTurn;
+
+  // UI rendern
+  if(typeof renderPlayers === 'function') renderPlayers();
+  if(typeof renderDice    === 'function') renderDice();
+  if(typeof renderStats   === 'function') renderStats();
+
+  // Turn-Buttons sperren / freigeben
+  const activeP  = players.find(p=>p.id===state.activePlayerId);
+  const isMine   = state.activePlayerId === myId;
+  const isAITurn = !!activeP?.isAI;
+  const canAct   = isMine || isAITurn;
+
+  document.querySelectorAll('button').forEach(btn=>{
+    const txt = (btn.innerText||'').trim();
+    if(['Würfeln','Sichern','Zug beenden'].includes(txt)){
+      btn.disabled     = !canAct;
+      btn.style.opacity = canAct ? '1' : '0.45';
+    }
+  });
+
+  if(typeof setStatus === 'function'){
+    if(isMine)        setStatus('🎲 Du bist dran!');
+    else if(!isAITurn) setStatus('⏳ '+(activeP?.name||'Spieler')+' ist am Zug…');
+  }
+}
+
+/* ── PUSH: lokale Engine → Firebase (nach jeder Aktion) ── */
+window.pushStateToFirebase = function(){
+  if(!_db() || !window._mpActive) return;
+
+  const playersMap = {};
+  (players||[]).forEach(p=>{
+    if(p.id) playersMap[p.id] = { id:p.id, name:p.name, score:p.score||0, isAI:!!p.isAI };
+  });
+  const activeId = players[currentPlayer]?.id || null;
+
+  window.gameState = Object.assign(window.gameState||{}, {
+    activePlayerId:activeId, players:playersMap
+  });
+
+  // update() — kein vollständiges Überschreiben
+  MultiplayerStore.patch({
+    players           : playersMap,
+    activePlayerId    : activeId,
+    dice              : dice.length  ? [...dice]     : null,
+    selected          : selected.length ? [...selected] : null,
     roundPoints,
     mustSecure,
     hasRolledThisTurn,
-    players: players.map(p=>({
-      name: p.name,
-      score: p.score,
-      isAI: !!p.isAI,
-      id: p.id || null
-    })),
-    activePlayerId: players[currentPlayer]?.id || null,
-    phase: 'playing',
-    updatedAt: Date.now()
-  };
-
-  window.gameState = state;
-  ref.set(state).catch(e=>console.warn('push:', e));
-};
-
-/* ── 2. FIREBASE → LOKALE VARIABLEN (Hydration) ── */
-window.hydratePremiumState = function(state){
-  if(!state) return;
-
-  // Veraltete oder gameover States ignorieren
-  if(state.phase === 'gameover') return;
-  if(state.phase !== 'playing') return;
-  if(!state.players || state.players.length === 0) return;
-
-  // Bridge automatisch aktivieren wenn Gast über Lobby beitritt
-  // NICHT automatisch beim Seitenladen feuern
-  if(!window._bridgeActive) return;
-
-  // Veraltete Updates ignorieren
-  if(state.updatedAt && state.updatedAt <= _lastTs) return;
-  _lastTs = state.updatedAt || 0;
-
-  window.gameState = state;
-
-  const myId = window.currentUserId;
-  const isMyTurn = state.activePlayerId === myId;
-
-  // Lokale Variablen hydratisieren
-  if(Array.isArray(state.players)){
-    players = state.players.map(p=>({
-      name: p.name,
-      score: p.score || 0,
-      isAI: !!p.isAI,
-      id: p.id || null
-    }));
-  }
-  if(typeof state.currentPlayer === 'number') currentPlayer = state.currentPlayer;
-  // Firebase speichert [] als null, {} als Objekt
-  if(state.dice === null || state.dice === undefined){
-    dice = [];
-  } else if(Array.isArray(state.dice)){
-    dice = [...state.dice];
-  } else if(typeof state.dice === 'object'){
-    dice = Object.values(state.dice);
-  }
-  if(Array.isArray(state.selected)) selected = [...state.selected];
-  if(typeof state.roundPoints === 'number') roundPoints = state.roundPoints;
-  if(typeof state.mustSecure === 'boolean') mustSecure = state.mustSecure;
-  if(typeof state.hasRolledThisTurn === 'boolean') hasRolledThisTurn = state.hasRolledThisTurn;
-
-  // Lobby ausblenden, Spiel anzeigen
-  const setup = document.getElementById('setupScreen');
-  if(setup) setup.style.display = 'none';
-  const lobby = document.getElementById('mpLobbyOverlay');
-  if(lobby) lobby.style.display = 'none';
-
-  // Premium-UI rendern
-  if(typeof renderPlayers === 'function') renderPlayers();
-  if(typeof renderDice === 'function') renderDice();
-  if(typeof renderStats === 'function') renderStats();
-
-  // Buttons sperren wenn nicht dran
-  const btnLabels = ['Würfeln','Sichern','Zug beenden'];
-  document.querySelectorAll('button').forEach(btn=>{
-    const txt = (btn.innerText||'').trim();
-    if(btnLabels.includes(txt)){
-      btn.disabled = !isMyTurn;
-      btn.style.opacity = isMyTurn ? '1' : '0.45';
-    }
+    phase             : 'playing',
+    updatedAt         : Date.now()
   });
-
-  // Status anzeigen
-  if(typeof setStatus === 'function'){
-    if(isMyTurn){
-      setStatus('🎲 Du bist dran!');
-    } else {
-      const active = normalizePlayersArray(state.players).find(p=>p.id===state.activePlayerId);
-      setStatus('⏳ ' + (active?.name||'Anderer Spieler') + ' ist am Zug…');
-    }
-  }
-
-  // Nicht-KI-Spieler lassen KI nur auf dem Host laufen
-  actionLocked = false;
-  isRolling = false;
 };
 
-/* ── 3. SPIELER IDs INITIALISIEREN ── */
-window.initBridgeForHost = function(){
-  window._activateBridge();
-  window._myPlayerIndex = 0; // Host ist immer Spieler 0
-  // IDs für alle Spieler setzen
-  players.forEach((p,i)=>{
-    if(!p.id){
-      p.id = p.isAI
-        ? ('ai_' + i + '_' + Math.random().toString(36).slice(2,6))
-        : (window.currentUserId || 'host');
-    }
-  });
-  console.log('[Bridge] Host initialisiert, Spieler:', players.map(p=>p.name+'/'+p.id));
-  window.pushStateToFirebase();
+/* ── isMyTurn: zentrale Prüfung ── */
+window.isMyTurn = function(){
+  const gs = window.gameState;
+  if(!gs || gs.phase !== 'playing' || !window._mpActive) return true;
+  return gs.activePlayerId === window.localPlayerId;
 };
 
-window.initBridgeForGuest = function(playerIndex){
-  window._activateBridge();
-  window._myPlayerIndex = (typeof playerIndex === 'number') ? playerIndex : -1;
-  console.log('[Bridge] Gast verbunden als Spieler', window._myPlayerIndex);
+/* ── Turn-Guard für die Engine-Funktionen ── */
+window._mpTurnAllowed = function(){
+  if(!window._mpActive) return true; // Solo-Modus
+  const gs = window.gameState;
+  if(!gs || gs.phase !== 'playing') return true;
+  const activeP = Object.values(gs.players||{}).find(p=>p.id===gs.activePlayerId);
+  if(activeP?.isAI) return true; // KI-Turns immer erlaubt (Host führt KI aus)
+  return gs.activePlayerId === window.localPlayerId;
 };
 
-/* ── 4. FIREBASE LISTENER (für Gäste, zusätzlich zu Stage10) ── */
+/* ── FIREBASE LISTENER: Auto-Subscribe + Auto-Reconnect ── */
 window.addEventListener('load', ()=>{
-  const ref = getGameRef();
-  if(!ref) return;
+  prefillLobbyName();
+  setupLobbyUI();
+  loadRoomAndRender();
 
-  ref.on('value', snap=>{
+  if(!_db()) return;
+
+  gameRef().on('value', snap=>{
     const state = snap.val();
+    window.gameState = state || window.gameState;
     if(!state || state.phase !== 'playing') return;
-    if(!state.players || state.players.length === 0) return;
 
-    // Bridge für Gast aktivieren sobald Spiel läuft
-    window._activateBridge();
+    const pArr = Object.values(state.players||{}).filter(Boolean);
+    const amInGame = pArr.some(p=>p.id===window.localPlayerId);
+    if(!amInGame) return;
 
-    // Spieler-Index aus ID ermitteln falls noch nicht gesetzt
-    if(window._myPlayerIndex === undefined || window._myPlayerIndex === -1){
-      const myId = window.currentUserId;
-      const idx = state.players.findIndex(p=>p.id===myId);
-      if(idx >= 0) window._myPlayerIndex = idx;
-    }
-
-    const myId = window.currentUserId;
-    const isHost = state.players?.[0]?.id === myId;
-
-    // Gast: immer hydratisieren
-    // Host: nur wenn der State von woanders kam (anderer Timestamp)
-    if(!isHost || state.activePlayerId !== myId){
-      window.hydratePremiumState(state);
-    }
+    window._mpActive = true;
+    hideLobby();
+    hydrateLocalEngine(state);
   });
 });
 
-/* ── 5. HOST-START patchen ── */
-// startSharedGameNow überschreiben um Bridge zu initialisieren
-const _origSSGN = window.startSharedGameNow;
-window.startSharedGameNow_orig = _origSSGN;
+/* ── ROOM DISPLAY ── */
+let _roomRef = null;
 
-/* ── 7. Bridge-Aktivierung für Gäste: Beitreten-Button abfangen ── */
-document.addEventListener('click', e=>{
-  const btn = e.target.closest('button');
-  if(!btn) return;
-  const txt = (btn.innerText||'').trim();
+async function loadRoomAndRender(){
+  if(!_db()) return;
+  if(_roomRef) _roomRef.off();
+  _roomRef = null;
 
-  // Gast tritt bei → Bridge aktivieren
-  if(txt === 'Beitreten' || btn.id === 'joinMainRoomBtn'){
-    console.log('[Bridge] Gast tritt bei → Bridge aktiviert');
-    window._bridgeActive = true;
-  }
-
-  // Host startet Spiel → Bridge aktivieren
-  if(txt === 'Spiel starten' || btn.id === 'startMainGameBtn'){
-    console.log('[Bridge] Host startet → Bridge aktiviert');
-    window._bridgeActive = true;
-    setTimeout(()=>{
-      if(typeof players !== 'undefined' && players.length > 0){
-        window.initBridgeForHost();
-      }
-    }, 800);
-  }
-}, true); // capture phase = vor allen anderen Listenern
-
-/* ── 6. Raum-Pool: Nur aktive Räume aus bekanntem Pool anzeigen ── */
-// Pool bekannter Raumnamen — werden nur angelegt wenn wirklich genutzt
-const ROOM_NAME_POOL = ['Düsseldorf','Griesheim','Bensheim','Alsbach','Zwingenberg'];
-
-// STAGE2's mpRooms auf Pool-Räume beschränken
-Object.defineProperty(window, 'mpRooms', {
-  get(){ return this._mpRoomsVal || []; },
-  set(val){
-    // Nur Räume aus dem Pool anzeigen, keine alten/wilden Räume
-    const poolIds = ROOM_NAME_POOL.map(n=>n.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue'));
-    this._mpRoomsVal = (val||[]).filter(r=>{
-      const id = (r.id||'').toLowerCase();
-      const name = (r.name||'').toLowerCase();
-      return poolIds.some(p=>id===p||name.startsWith(p.slice(0,4)));
+  // Raum anlegen falls nicht vorhanden
+  const snap = await roomRef().once('value');
+  if(!snap.exists()){
+    await roomRef().set({
+      id:'duesseldorf', name:'Düsseldorf', phase:'waiting',
+      maxPlayers:4, allowAI:true, players:{},
+      createdAt:Date.now(), lastActivity:Date.now()
     });
-  },
-  configurable: true
-});
-
-// Nächsten freien Raum aus Pool finden
-window.getNextFreeRoom = async function(){
-  const db = firebase.database();
-  for(const name of ROOM_NAME_POOL){
-    const id = name.toLowerCase().replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue');
-    const snap = await db.ref('z10_rooms/'+id).once('value');
-    const room = snap.val();
-    if(!room || room.phase === 'waiting') return {id, name};
   }
-  return {id: ROOM_NAME_POOL[0].toLowerCase(), name: ROOM_NAME_POOL[0]};
-};
 
-/* ── 8. Auto-Reset bei hängendem alten Spielstand ── */
-window.addEventListener('load', ()=>{
-  setTimeout(async ()=>{
-    if(window._bridgeActive) return; // Aktives Spiel, nicht stören
-    try{
-      const db = firebase.database();
-      const snap = await db.ref('z10_games/duesseldorf').once('value');
-      const gs = snap.val();
-      if(gs && (gs.phase==='playing'||gs.phase==='gameover')){
-        console.warn('[Bridge] Alter Spielstand gefunden — wird automatisch gelöscht');
-        await db.ref('z10_games/duesseldorf').remove();
-      }
-      const rSnap = await db.ref('z10_rooms/duesseldorf').once('value');
-      const room = rSnap.val();
-      if(room && room.phase==='playing'){
-        await db.ref('z10_rooms/duesseldorf').update({phase:'waiting'});
-      }
-    }catch(e){}
-  }, 2000);
-});
-
-function showLobbyOverlay(){
-  const o=document.getElementById('mpLobbyOverlay');
-  if(o){o.style.display='flex';o.style.zIndex='999999';}
+  _roomRef = roomRef();
+  _roomRef.on('value', s=>{ renderRoomPanel(s.val()||{}); });
 }
 
-// Auto-Reset und Bar-Anzeige bei altem State
-setTimeout(async ()=>{
-  if(window._bridgeActive) return;
-  try{
-    const db=firebase.database();
-    const snap=await db.ref('z10_games/duesseldorf').once('value');
-    const gs=snap.val();
-    if(gs&&(gs.phase==='playing'||gs.phase==='gameover')){
-      // Alten State gefunden: Bar anzeigen statt direkt zu löschen
-      const bar=document.getElementById('backToLobbyBar');
-      if(bar) bar.style.display='flex';
-      // Nach 3 Sekunden automatisch löschen
-      setTimeout(async()=>{
-        await db.ref('z10_games/duesseldorf').remove().catch(()=>{});
-        await db.ref('z10_rooms/duesseldorf').update({phase:'waiting'}).catch(()=>{});
-        location.reload();
-      },3000);
-    }
-  }catch(e){}
-},1000);
-
-
-/* ── Raum-Spieleranzahl live aktualisieren ── */
-window.updateRoomMaxPlayers = async function(val){
-  const n = parseInt(val);
-  if(!n||n<2||n>10) return;
-  try{
-    const db = firebase.database();
-    await db.ref('z10_rooms/duesseldorf').update({maxPlayers:n});
-    // Raumliste neu rendern
-    const snap = await db.ref('z10_rooms/duesseldorf').once('value');
-    const room = snap.val();
-    if(room && typeof renderSingleRoom === 'function') renderSingleRoom(room);
-    else if(typeof renderRooms === 'function'){
-      const allSnap = await db.ref('z10_rooms').once('value');
-      const all = allSnap.val()||{};
-      renderRooms(Object.values(all));
-    }
-    console.log('[Bridge] Spieleranzahl auf',n,'gesetzt');
-  }catch(e){ console.warn('updateRoomMaxPlayers:',e); }
-};
-
-/* ── Dropdown beim Laden mit Firebase-Wert synchronisieren ── */
-window.addEventListener('load', ()=>{
-  setTimeout(async()=>{
-    try{
-      const db = firebase.database();
-      const snap = await db.ref('z10_rooms/duesseldorf/maxPlayers').once('value');
-      const n = snap.val();
-      const sel = document.getElementById('mpMaxPlayers');
-      if(sel && n){ sel.value = String(n); }
-    }catch(e){}
-  }, 1500);
-});
-
-console.log('[Bridge] Premium-Firebase-Bridge geladen ✅');
-
-})();
-</script>
-
-
-<script>
-(function(){
-
-window.Z10 = window.Z10 || {};
-
-window.Z10.normalizePlayers = function(players){
-  if(!players) return {};
-  if(Array.isArray(players)){
-    const obj = {};
-    players.filter(Boolean).forEach(p=>{
-      if(p && p.id) obj[p.id] = p;
-    });
-    return obj;
-  }
-  return players;
-};
-
-window.Z10.playersArray = function(players){
-  return Object.values(window.Z10.normalizePlayers(players));
-};
-
-window.Z10.localPlayerId = localStorage.getItem('z10_player_id');
-
-window.Z10.ensurePlayerIdentity = function(name){
-  const id = localStorage.getItem('z10_player_id');
-  const playerName = name || localStorage.getItem('z10_player_name') || 'Spieler';
-
-  return {
-    id,
-    name: playerName
-  };
-};
-
-window.Z10.mergePlayerIntoRoom = function(room){
-  room = room || {};
-
-  room.players = window.Z10.normalizePlayers(room.players);
-
-  const me = window.Z10.ensurePlayerIdentity();
-
-  room.players[me.id] = {
-    ...(room.players[me.id] || {}),
-    ...me,
-    online: true,
-    lastSeen: Date.now()
-  };
-
-  if(!room.activePlayerId){
-    room.activePlayerId = me.id;
-  }
-
-  return room;
-};
-
-window.Z10.isMyTurn = function(gameState){
-  if(!gameState) return false;
-  return gameState.activePlayerId === window.Z10.localPlayerId;
-};
-
-console.log('[Z10] playerId multiplayer bridge active');
-
-})();
-</script>
-
-
-<script>
-(function(){
-  window.Z10 = window.Z10 || {};
-
-  window.Z10.resolveActivePlayer = function(gameState){
-    if(!gameState) return null;
-
-    const players = window.Z10.playersArray(gameState.players);
-
-    if(gameState.activePlayerId){
-      return players.find(p=>p.id===gameState.activePlayerId) || null;
-    }
-
-    if(typeof gameState.activePlayerIndex === 'number'){
-      return players[gameState.activePlayerIndex] || null;
-    }
-
-    return players[0] || null;
-  };
-})();
-</script>
-
-
-
-
-
-
-
-
-<script>
-/* Passive Shared-State Sync */
-
-(function(){
-
-  const originalFirebaseInit = window.initializeFirebase;
-
-  window.initializeFirebase = async function(){
-
-    if(typeof originalFirebaseInit === 'function'){
-      await originalFirebaseInit.apply(this, arguments);
-    }
-
-    try{
-
-      if(
-        window.MultiplayerStore &&
-        !window.__sharedStateSubscribed
-      ){
-
-        window.__sharedStateSubscribed = true;
-
-        MultiplayerStore.subscribe();
-      }
-
-    }catch(e){
-      console.warn('[PASSIVE SYNC]', e);
-    }
-  };
-
-})();
-</script>
-
-
-<script>
-/* Intro Splash Emergency Fix */
-
-
-
-
-<script>
-/* Live Lobby Sync Patch */
-
-window.mergePlayersFromSharedState = function(sharedPlayers){
-
-  try{
-
-    const players = Array.isArray(sharedPlayers)
-      ? sharedPlayers.filter(Boolean)
-      : Object.values(sharedPlayers || {}).filter(Boolean);
-
-    window.latestSharedPlayers = players;
-
-    if(typeof renderPlayers === 'function'){
-      renderPlayers(players);
-    }
-
-  }catch(e){
-    console.warn('[LIVE PLAYER SYNC]', e);
-  }
-};
-
-(function(){
-
-  const oldRender = window.renderFromSharedState;
-
-  window.renderFromSharedState = function(state){
-
-    if(oldRender){
-      try{ oldRender(state); }catch(e){}
-    }
-
-    mergePlayersFromSharedState(
-      state.players || {}
-    );
-  };
-
-})();
-</script>
-
-
-<script>
-/* ===== PLAYER MERGE HOTFIX ===== */
-
-(function(){
-
-  function normalizePlayers(players){
-
-    if(!players) return {};
-
-    if(Array.isArray(players)){
-
-      const out = {};
-
-      players.filter(Boolean).forEach((p,i) => {
-
-        const id =
-          p.id ||
-          p.playerId ||
-          ('legacy_' + i);
-
-        out[id] = {
-          ...p,
-          id
-        };
-      });
-
-      return out;
-    }
-
-    const out = {};
-
-    Object.entries(players).forEach(([k,v]) => {
-
-      if(!v) return;
-
-      out[k] = {
-        ...v,
-        id: v.id || k
-      };
-    });
-
-    return out;
-  }
-
-  window.safeMergePlayer = async function(player){
-
-    if(!window.firebase || !firebase.database) return;
-
-    const ref = firebase.database().ref('z10_games/duesseldorf');
-
-    const snap = await ref.get();
-
-    const state = snap.val() || {};
-
-    state.players = normalizePlayers(state.players);
-
-    state.players[player.id] = {
-      ...(state.players[player.id] || {}),
-      ...player,
-      id: player.id,
-      online: true,
-      lastSeen: Date.now()
-    };
-
-    if(!state.activePlayerId){
-      state.activePlayerId = player.id;
-    }
-
-    await ref.update({
-      players: state.players,
-      activePlayerId: state.activePlayerId
-    });
-
-    window.gameState.players = state.players;
-    window.gameState.activePlayerId = state.activePlayerId;
-  };
-
-  const originalJoinRoom = window.joinRoom;
-
-  window.joinRoom = async function(){
-
-    try{
-
-      const playerName =
-        localStorage.getItem('z10_player_name') ||
-        document.getElementById('playerNameInput')?.value ||
-        'Spieler';
-
-      await safeMergePlayer({
-        id: window.localPlayerId,
-        name: playerName
-      });
-
-    }catch(e){
-      console.warn('[JOIN HOTFIX]', e);
-    }
-
-    if(typeof originalJoinRoom === 'function'){
-      try{
-        return await originalJoinRoom.apply(this, arguments);
-      }catch(e){
-        console.warn('[ORIGINAL JOIN]', e);
-      }
-    }
-  };
-
-})();
-</script>
-
-
-<script>
-/* ===== IDENTITY CONSISTENCY FIX ===== */
-
-(function(){
-
-  function getStablePlayerName(){
-
-    const input =
-      document.getElementById('playerNameInput');
-
-    const existing =
-      localStorage.getItem('z10_player_name');
-
-    const value =
-      input?.value?.trim() ||
-      existing ||
-      'Spieler';
-
-    localStorage.setItem(
-      'z10_player_name',
-      value
-    );
-
-    return value;
-  }
-
-  window.getLocalPlayerObject = function(){
-
-    const id = String(window.localPlayerId);
-
-    const players =
-      window.gameState?.players || {};
-
-    const normalized =
-      Array.isArray(players)
-        ? players
-        : Object.values(players);
-
-    return normalized.find(
-      p => p && String(p.id) === id
-    );
-  };
-
-  window.isMyTurn = function(){
-
-    const myId =
-      String(window.localPlayerId || '');
-
-    const activeId =
-      String(window.gameState?.activePlayerId || '');
-
-    return myId === activeId;
-  };
-
-  window.safeEnsureIdentity = async function(){
-
-    if(!window.firebase || !firebase.database) return;
-
-    const player = {
-      id: String(window.localPlayerId),
-      name: getStablePlayerName(),
-      online: true,
-      lastSeen: Date.now()
-    };
-
-    const ref =
-      firebase.database()
-      .ref(
-        'z10_games/duesseldorf/players/' +
-        player.id
-      );
-
-    await ref.update(player);
-
-    if(
-      !window.gameState.activePlayerId
-    ){
-
-      await firebase.database()
-        .ref('z10_games/duesseldorf')
-        .update({
-          activePlayerId: player.id
-        });
-    }
-  };
-
-  const oldJoin = window.joinRoom;
-
-  window.joinRoom = async function(){
-
-    await safeEnsureIdentity();
-
-    if(typeof oldJoin === 'function'){
-      return oldJoin.apply(this, arguments);
-    }
-  };
-
-})();
-</script>
-
-
-<script>
-/* ===== ACTION OWNERSHIP GUARDS ===== */
-
-(function(){
-
-  function denyAction(name){
-
-    console.warn(
-      '[TURN BLOCKED]',
-      name,
-      'active:',
-      window.gameState?.activePlayerId,
-      'local:',
-      window.localPlayerId
-    );
-
-    return false;
-  }
-
-  function protectAction(fnName){
-
-    const original = window[fnName];
-
-    if(typeof original !== 'function') return;
-
-    window[fnName] = async function(){
-
-      if(!window.isMyTurn?.()){
-        return denyAction(fnName);
-      }
-
-      return original.apply(this, arguments);
-    };
-  }
-
-  protectAction('rollDice');
-  protectAction('saveScore');
-  protectAction('bankPoints');
-  protectAction('endTurn');
-  protectAction('finishTurn');
-  protectAction('holdScore');
-
-})();
-</script>
-
-
-<script>
-/* ===== TURN UI CONSISTENCY FIX ===== */
-
-(function(){
-
-  window.getActivePlayerName = function(){
-
-    const players =
-      window.gameState?.players || {};
-
-    const list = Array.isArray(players)
-      ? players
-      : Object.values(players);
-
-    const active = list.find(
-      p => String(p?.id || '') ===
-      String(window.gameState?.activePlayerId || '')
-    );
-
-    return active?.name || 'Spieler';
-  };
-
-  window.syncTurnUI = function(){
-
-    const myTurn = !!window.isMyTurn?.();
-
-    const statusBars = [
-      ...document.querySelectorAll(
-        '.status,.turn-status,.game-status,#statusBar,#turnInfo'
-      )
-    ];
-
-    statusBars.forEach(el => {
-
-      if(!el) return;
-
-      el.innerText = myTurn
-        ? '🎲 Du bist dran!'
-        : '⏳ ' + getActivePlayerName() + ' ist am Zug...';
-    });
-
-    const buttons = [
-      ...document.querySelectorAll('button')
-    ];
-
-    buttons.forEach(btn => {
-
-      const text =
-        (btn.innerText || '').toLowerCase();
-
-      const isAction =
-        text.includes('würfeln') ||
-        text.includes('sichern') ||
-        text.includes('zug beenden');
-
-      if(isAction){
-        btn.disabled = !myTurn;
-        btn.style.opacity = myTurn ? '1' : '0.45';
-      }
-    });
-  };
-
-  const oldRender =
-    window.renderFromSharedState;
-
-  window.renderFromSharedState = function(state){
-
-    if(oldRender){
-      try{
-        oldRender(state);
-      }catch(e){}
-    }
-
-    setTimeout(() => {
-      try{
-        syncTurnUI();
-      }catch(e){}
-    }, 50);
-  };
-
-})();
-</script>
-
-
-<script>
-/* ===== LEGACY PLAYER ID MIGRATION ===== */
-
-(function(){
-
-  window.normalizePlayerCollection = function(players){
-
-    const normalized = {};
-
-    const source = Array.isArray(players)
-      ? players.filter(Boolean)
-      : Object.values(players || {}).filter(Boolean);
-
-    source.forEach((p, index) => {
-
-      const legacyId =
-        String(
-          p?.id ||
-          p?.playerId ||
-          ''
-        );
-
-      let stableId = legacyId;
-
-      if(
-        !stableId ||
-        stableId.startsWith('u_') ||
-        stableId.startsWith('legacy_')
-      ){
-
-        stableId =
-          'p_' +
-          (
-            p?.name ||
-            ('player' + index)
-          )
-          .toLowerCase()
-          .replace(/[^a-z0-9]/g,'')
-          .slice(0,10);
-      }
-
-      normalized[stableId] = {
-        ...p,
-        id: stableId,
-        playerId: stableId,
-        name:
-          p?.name ||
-          ('Spieler_' + index)
-      };
-    });
-
-    return normalized;
-  };
-
-  window.migrateLegacyRoom = async function(){
-
-    if(!window.firebase || !firebase.database) return;
-
-    const ref =
-      firebase.database()
-      .ref('z10_games/duesseldorf');
-
-    const snap = await ref.get();
-
-    const state = snap.val() || {};
-
-    const normalizedPlayers =
-      normalizePlayerCollection(
-        state.players
-      );
-
-    let activeId =
-      String(state.activePlayerId || '');
-
-    if(
-      !normalizedPlayers[activeId]
-    ){
-
-      const first =
-        Object.values(normalizedPlayers)[0];
-
-      if(first){
-        activeId = first.id;
-      }
-    }
-
-    await ref.update({
-      players: normalizedPlayers,
-      activePlayerId: activeId
-    });
-
-    window.gameState.players =
-      normalizedPlayers;
-
-    window.gameState.activePlayerId =
-      activeId;
-
-    console.log(
-      '[PLAYER MIGRATION COMPLETE]',
-      normalizedPlayers
-    );
-  };
-
-  window.addEventListener('load', () => {
-
-    setTimeout(() => {
-
-      migrateLegacyRoom()
-      .catch(console.warn);
-
-    }, 1200);
-
+function renderRoomPanel(room){
+  const list = document.getElementById('publicRoomList');
+  if(!list) return;
+
+  const rawP = room.players||{};
+  const pArr = Array.isArray(rawP) ? rawP.filter(Boolean) : Object.values(rawP).filter(Boolean);
+  const myId = window.localPlayerId;
+  const joined = pArr.some(p=>p.id===myId);
+  const maxP   = room.maxPlayers || 4;
+
+  list.innerHTML = `
+<div style="background:#1b1630;border-radius:16px;padding:18px;border:1px solid rgba(255,255,255,.1)">
+  <div style="font-size:20px;font-weight:800;margin-bottom:10px">🎲 Düsseldorf</div>
+  <div style="opacity:.6;font-size:14px;margin-bottom:14px">
+    ${pArr.length}/${maxP} Spieler &nbsp;·&nbsp; ${room.phase==='playing'?'🟢 Spiel läuft':'⏳ Wartend'}
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    ${!joined ? `<button onclick="window.joinSharedRoom()"
+      style="padding:10px 16px;border:none;border-radius:10px;background:#8b5cf6;color:#fff;font-weight:700;cursor:pointer;font-family:inherit">
+      Beitreten
+    </button>` : ''}
+    <button id="startMainGameBtn" onclick="window.startSharedGame()"
+      style="padding:10px 20px;border:none;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:700;cursor:pointer;font-family:inherit">
+      🎮 Spiel starten
+    </button>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px">
+    ${pArr.map(p=>`<div style="background:#241d40;padding:8px 12px;border-radius:10px;font-size:13px">${p.name||'?'}${p.isAI?' 🤖':''}</div>`).join('')}
+  </div>
+</div>`;
+}
+
+/* ── LOBBY UI ── */
+function hideLobby(){
+  const el = document.getElementById('mpLobbyOverlay');
+  if(el) el.style.display='none';
+}
+
+function setupLobbyUI(){
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const close = document.getElementById('closeMpLobby');
+    if(close) close.onclick = hideLobby;
+    const refresh = document.getElementById('refreshRoomsBtn');
+    if(refresh) refresh.onclick = loadRoomAndRender;
+    prefillLobbyName();
   });
+}
+
+window.updateRoomMaxPlayers = function(val){
+  if(!_db()) return;
+  roomRef().update({ maxPlayers:parseInt(val) }).catch(()=>{});
+};
+
+window.forceReset = function(){
+  const url = 'https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app';
+  Promise.all([
+    fetch(url+'/z10_games/duesseldorf.json',{method:'DELETE'}),
+    fetch(url+'/z10_rooms/duesseldorf.json',{method:'DELETE'})
+  ]).finally(()=>location.reload());
+};
+
+window.showLobbyOverlay = function(){
+  const el = document.getElementById('mpLobbyOverlay');
+  if(el){ el.style.display='flex'; el.style.zIndex='99999'; }
+};
 
 })();
 </script>
