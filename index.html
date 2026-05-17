@@ -2963,25 +2963,7 @@ document.getElementById('victoryTestBtn')
 </script>
 
 
-<script>
-window.addEventListener('load',()=>{
 
-setTimeout(()=>{
-
-const splash=document.getElementById('introSplash');
-
-if(splash){
-splash.classList.add('hide');
-
-setTimeout(()=>{
-splash.remove();
-},900);
-}
-
-},3000);
-
-});
-</script>
 
 
 <script>
@@ -6111,58 +6093,43 @@ console.log('[Z10] playerId multiplayer bridge active');
 </script>
 
 
+
+
+
+
+
+
 <script>
-window.addEventListener('DOMContentLoaded', async () => {
+/* Passive Shared-State Sync */
 
-  try{
+(function(){
 
-    if(window.MultiplayerStore){
-      MultiplayerStore.subscribe();
+  const originalFirebaseInit = window.initializeFirebase;
+
+  window.initializeFirebase = async function(){
+
+    if(typeof originalFirebaseInit === 'function'){
+      await originalFirebaseInit.apply(this, arguments);
     }
-
-  }catch(e){
-    console.warn('[BOOT]', e);
-  }
-
-});
-</script>
-
-
-<script>
-window.addEventListener('load', () => {
-
-  setTimeout(async () => {
 
     try{
 
       if(
-        window.gameState &&
-        !window.gameState.activePlayerId
+        window.MultiplayerStore &&
+        !window.__sharedStateSubscribed
       ){
 
-        const players = getOrderedPlayers();
+        window.__sharedStateSubscribed = true;
 
-        if(players.length){
-
-          const first = players[0];
-
-          window.gameState.activePlayerId = first.id;
-
-          if(window.MultiplayerStore){
-            await MultiplayerStore.patch({
-              activePlayerId: first.id
-            });
-          }
-        }
+        MultiplayerStore.subscribe();
       }
 
     }catch(e){
-      console.warn('[TURN FALLBACK]', e);
+      console.warn('[PASSIVE SYNC]', e);
     }
+  };
 
-  }, 1200);
-
-});
+})();
 </script>
 
 </body>
