@@ -6434,5 +6434,89 @@ window.mergePlayersFromSharedState = function(sharedPlayers){
 })();
 </script>
 
+
+<script>
+/* ===== TURN UI CONSISTENCY FIX ===== */
+
+(function(){
+
+  window.getActivePlayerName = function(){
+
+    const players =
+      window.gameState?.players || {};
+
+    const list = Array.isArray(players)
+      ? players
+      : Object.values(players);
+
+    const active = list.find(
+      p => String(p?.id || '') ===
+      String(window.gameState?.activePlayerId || '')
+    );
+
+    return active?.name || 'Spieler';
+  };
+
+  window.syncTurnUI = function(){
+
+    const myTurn = !!window.isMyTurn?.();
+
+    const statusBars = [
+      ...document.querySelectorAll(
+        '.status,.turn-status,.game-status,#statusBar,#turnInfo'
+      )
+    ];
+
+    statusBars.forEach(el => {
+
+      if(!el) return;
+
+      el.innerText = myTurn
+        ? '🎲 Du bist dran!'
+        : '⏳ ' + getActivePlayerName() + ' ist am Zug...';
+    });
+
+    const buttons = [
+      ...document.querySelectorAll('button')
+    ];
+
+    buttons.forEach(btn => {
+
+      const text =
+        (btn.innerText || '').toLowerCase();
+
+      const isAction =
+        text.includes('würfeln') ||
+        text.includes('sichern') ||
+        text.includes('zug beenden');
+
+      if(isAction){
+        btn.disabled = !myTurn;
+        btn.style.opacity = myTurn ? '1' : '0.45';
+      }
+    });
+  };
+
+  const oldRender =
+    window.renderFromSharedState;
+
+  window.renderFromSharedState = function(state){
+
+    if(oldRender){
+      try{
+        oldRender(state);
+      }catch(e){}
+    }
+
+    setTimeout(() => {
+      try{
+        syncTurnUI();
+      }catch(e){}
+    }, 50);
+  };
+
+})();
+</script>
+
 </body>
 </html>
