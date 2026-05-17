@@ -1,56 +1,105 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+
 <script>
-/* SOFORT-CLEANUP: Löscht alten Spielstand via REST API BEVOR Firebase-Listener feuern */
+window.gameState = {
+  players: {},
+  activePlayerId: null,
+  dice: [],
+  scores: {},
+  round: 1,
+  phase: 'lobby',
+  settings: {
+    mode: 'full'
+  }
+};
+
 (function(){
-  const DB = 'https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app';
-  const GAME_PATH = DB + '/z10_games/duesseldorf.json';
-  const ROOM_PATH = DB + '/z10_rooms/duesseldorf.json';
 
-  // Prüfe ob Reset benötigt wird (localStorage-Flag von forceReset)
-  const needsReset = localStorage.getItem('z10_force_reset') === '1';
+  let id = localStorage.getItem('z10_player_id');
 
-  // Ghost-Spieler direkt via REST aus Raum löschen
-  fetch('https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app/z10_rooms/duesseldorf/players.json')
-    .then(r=>r.json())
-    .then(players=>{
-      if(!players) return;
-      const arr = Array.isArray(players) ? players : Object.values(players);
-      const clean = arr.filter(p=>p&&p.name&&!/^Spieler_?\d+$/i.test(p.name));
-      if(clean.length < arr.length){
-        fetch('https://romme-hand-default-rtdb.europe-west1.firebasedatabase.app/z10_rooms/duesseldorf/players.json',{
-          method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(clean)
-        });
-      }
-    }).catch(()=>{});
+  if(!id){
+    id = 'p_' + Math.random().toString(36).slice(2,10);
+    localStorage.setItem('z10_player_id', id);
+  }
 
-  // Spielstand per REST lesen
-  fetch(GAME_PATH)
-    .then(r=>r.json())
-    .then(data=>{
-      if(data && (data.phase==='playing'||data.phase==='gameover')||needsReset){
-        // Alten State sofort löschen
-        console.log('[CLEANUP] Alter Spielstand gefunden, lösche...');
-        localStorage.removeItem('z10_force_reset');
-        return Promise.all([
-          fetch(GAME_PATH, {method:'DELETE'}),
-          fetch(ROOM_PATH)
-            .then(r=>r.json())
-            .then(room=>{
-              if(room&&room.phase==='playing'){
-                return fetch(ROOM_PATH, {
-                  method:'PATCH',
-                  headers:{'Content-Type':'application/json'},
-                  body:JSON.stringify({phase:'waiting'})
-                });
-              }
-            })
-        ]);
-      }
-    })
-    .catch(e=>console.warn('[CLEANUP] REST error:', e));
+  window.localPlayerId = id;
+
 })();
+
+window.MultiplayerStore = {
+
+  roomPath: 'z10_games/duesseldorf',
+
+  subscribe(){
+
+    if(!window.firebase || !firebase.database) return;
+
+    firebase.database()
+      .ref(this.roomPath)
+      .on('value', snap => {
+
+        const state = snap.val();
+
+        if(!state) return;
+
+        state.players = state.players || {};
+        state.scores = state.scores || {};
+        state.dice = state.dice || [];
+
+        window.gameState = state;
+
+        if(typeof renderFromSharedState === 'function'){
+          renderFromSharedState(state);
+        }
+
+      });
+  },
+
+  async patch(partial){
+
+    if(!window.firebase || !firebase.database) return;
+
+    return firebase.database()
+      .ref(this.roomPath)
+      .update(partial);
+  }
+};
+
+function isMyTurn(){
+  return (
+    window.gameState.activePlayerId ===
+    window.localPlayerId
+  );
+}
+
+function renderFromSharedState(state){
+
+  try{
+
+    if(typeof renderPlayers === 'function'){
+      renderPlayers(
+        Object.values(state.players || {})
+      );
+    }
+
+    if(typeof renderDice === 'function'){
+      renderDice(state.dice || []);
+    }
+
+    if(typeof renderStats === 'function'){
+      renderStats();
+    }
+
+  }catch(err){
+    console.warn('[SharedStateRender]', err);
+  }
+}
+</script>
+
+<script>
+// Shared-State Multiplayer: aggressive startup cleanup removed
 </script>
 
 <meta charset="UTF-8">
@@ -5995,6 +6044,23 @@ console.log('[Z10] playerId multiplayer bridge active');
     return players[0] || null;
   };
 })();
+</script>
+
+
+<script>
+window.addEventListener('DOMContentLoaded', async () => {
+
+  try{
+
+    if(window.MultiplayerStore){
+      MultiplayerStore.subscribe();
+    }
+
+  }catch(e){
+    console.warn('[BOOT]', e);
+  }
+
+});
 </script>
 
 </body>
