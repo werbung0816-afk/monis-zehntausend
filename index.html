@@ -1214,6 +1214,112 @@ function normalizePlayersArray(players){
 }
 </style>
 
+
+<script>
+(function(){
+  // Persistente Spieleridentität
+  const existingId = localStorage.getItem('z10_player_id');
+  const existingName = localStorage.getItem('z10_player_name');
+
+  if(!existingId){
+    localStorage.setItem('z10_player_id','p_'+Math.random().toString(36).slice(2,10));
+  }
+
+  // Globale Helfer
+  window.Z10 = window.Z10 || {};
+
+  window.Z10.getPlayerId = function(){
+    return localStorage.getItem('z10_player_id');
+  };
+
+  window.Z10.getPlayerName = function(){
+    return localStorage.getItem('z10_player_name') || '';
+  };
+
+  window.Z10.setPlayerName = function(name){
+    if(name && name.trim()){
+      localStorage.setItem('z10_player_name', name.trim());
+    }
+  };
+
+  // Input automatisch persistieren
+  document.addEventListener('input', function(e){
+    if(e.target && (
+      e.target.id === 'playerNameInput' ||
+      e.target.name === 'playerName'
+    )){
+      window.Z10.setPlayerName(e.target.value);
+    }
+  });
+
+  // Nach DOM Ready Namen wiederherstellen
+  window.addEventListener('DOMContentLoaded', function(){
+    const input =
+      document.getElementById('playerNameInput') ||
+      document.querySelector('input[name="playerName"]');
+
+    if(input && existingName){
+      input.value = existingName;
+    }
+  });
+
+  // Nur ein aktiver Raum
+  window.Z10_SINGLE_ROOM = 'duesseldorf';
+
+})();
+</script>
+
+
+<style>
+@media (max-width: 1100px){
+  .layout{
+    display:flex !important;
+    flex-direction:column !important;
+  }
+
+  .panel{
+    margin-bottom:8px !important;
+  }
+
+  .logo h1{
+    font-size:36px !important;
+  }
+
+  .logo p{
+    font-size:16px !important;
+    margin-top:2px !important;
+  }
+
+  .player{
+    padding:10px !important;
+    margin-bottom:8px !important;
+  }
+
+  .player .score{
+    font-size:26px !important;
+  }
+
+  .diceWrap{
+    min-height:110px !important;
+    padding:10px !important;
+    gap:8px !important;
+  }
+
+  .die{
+    width:58px !important;
+    height:58px !important;
+  }
+
+  .cup{
+    display:none !important;
+  }
+
+  .log{
+    max-height:160px !important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div id="backToLobbyBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:rgba(10,6,20,.97);backdrop-filter:blur(10px);padding:8px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(139,92,246,.3)">
@@ -1222,6 +1328,43 @@ function normalizePlayersArray(players){
     <button onclick="showLobbyOverlay()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(139,92,246,.5);background:rgba(139,92,246,.15);color:#a78bfa;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">📋 Zur Lobby</button>
     <button onclick="forceReset()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.15);color:#f87171;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">🗑 Alles löschen &amp; neu</button>
   </div>
+<div id="gameModeWrap" style="margin-top:18px;">
+  <div style="font-size:20px;font-weight:800;margin-bottom:10px;">Spielmodus</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+    <button type="button" id="modeFullBtn" class="countBtn activeCount">Volles Spiel</button>
+    <button type="button" id="modeQuickBtn" class="countBtn">Schnelle 10</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const KEY = 'z10_game_mode';
+
+  function apply(mode){
+    localStorage.setItem(KEY, mode);
+
+    const full = document.getElementById('modeFullBtn');
+    const quick = document.getElementById('modeQuickBtn');
+
+    if(full && quick){
+      full.classList.toggle('activeCount', mode === 'full');
+      quick.classList.toggle('activeCount', mode === 'quick10');
+    }
+
+    window.Z10_GAME_MODE = mode;
+  }
+
+  document.addEventListener('click', function(e){
+    if(e.target && e.target.id === 'modeFullBtn') apply('full');
+    if(e.target && e.target.id === 'modeQuickBtn') apply('quick10');
+  });
+
+  window.addEventListener('DOMContentLoaded', function(){
+    apply(localStorage.getItem(KEY) || 'full');
+  });
+})();
+</script>
+
 </div>
 <div id="quick10Counter">1 / 10</div>
 
