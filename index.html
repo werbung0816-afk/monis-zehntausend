@@ -2983,7 +2983,7 @@ if(window.gameMode === 'quick10'){
             const winner = [...players].sort((a,b)=>b.score-a.score)[0];
 
             setTimeout(()=>{
-                alert(
+                console.log(
                     '🏆 SCHNELLE 10 BEENDET!\n\n' +
                     winner.name +
                     ' gewinnt mit ' +
@@ -3172,7 +3172,7 @@ window.finishQuick10 = function(sortedPlayers){
     }
 
     // fallback
-    alert('Spiel beendet');
+    console.log('Spiel beendet');
 }
 
 
@@ -3355,7 +3355,7 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 function devAddRound(){
 
     if(window.gameMode !== 'quick10'){
-        alert('Bitte zuerst Schnelle 10 starten');
+        console.log('Bitte zuerst Schnelle 10 starten');
         return;
     }
 
@@ -3747,7 +3747,7 @@ function renderRooms(){
      font-weight:bold;
      cursor:pointer;
      "
-     onclick="alert('Join-System folgt im nächsten Merge-Schritt')"
+     onclick="console.log('Join-System folgt im nächsten Merge-Schritt')"
    >
    Beitreten
    </button>
@@ -4030,7 +4030,7 @@ function joinRoom(roomId){
 
    roomsRef().child(roomId).set(room);
 
-   alert(
+   console.log(
     'Beigetreten: '
     + room.name
    );
@@ -4156,7 +4156,7 @@ window.startSharedGame = function(room){
    winner:null
  };
 
- alert(
+ console.log(
    'Gemeinsames Spiel gestartet: '
    + room.name
  );
@@ -4372,7 +4372,7 @@ window.watchRoom = function(roomId){
       'mpLobbyOverlay'
      ).style.display='none';
 
-     alert(
+     console.log(
       'Gemeinsames Spiel startet jetzt'
      );
 
@@ -5373,7 +5373,7 @@ window.startSharedGameNow = async function startSharedGameNow(){
  const typedName = nameInp ? nameInp.value.trim() : '';
  if(!typedName){
    if(nameInp){ nameInp.style.borderColor='rgba(239,68,68,.7)'; nameInp.focus(); }
-   alert('Bitte zuerst einen Namen eingeben!');
+   console.log('Bitte zuerst einen Namen eingeben!');
    return;
  }
  window.currentPlayerName = typedName;
@@ -5465,7 +5465,7 @@ window.startSharedGameNow = async function startSharedGameNow(){
 
  }catch(err){
    console.error('startSharedGameNow failed:',err);
-   alert('Fehler beim Starten: '+err.message);
+   console.log('Fehler beim Starten: '+err.message);
  }
 }
 
@@ -6135,6 +6135,47 @@ console.log('[Z10] playerId multiplayer bridge active');
 /* Intro Splash Emergency Fix */
 
 
+
+
+<script>
+/* Live Lobby Sync Patch */
+
+window.mergePlayersFromSharedState = function(sharedPlayers){
+
+  try{
+
+    const players = Array.isArray(sharedPlayers)
+      ? sharedPlayers.filter(Boolean)
+      : Object.values(sharedPlayers || {}).filter(Boolean);
+
+    window.latestSharedPlayers = players;
+
+    if(typeof renderPlayers === 'function'){
+      renderPlayers(players);
+    }
+
+  }catch(e){
+    console.warn('[LIVE PLAYER SYNC]', e);
+  }
+};
+
+(function(){
+
+  const oldRender = window.renderFromSharedState;
+
+  window.renderFromSharedState = function(state){
+
+    if(oldRender){
+      try{ oldRender(state); }catch(e){}
+    }
+
+    mergePlayersFromSharedState(
+      state.players || {}
+    );
+  };
+
+})();
+</script>
 
 </body>
 </html>
