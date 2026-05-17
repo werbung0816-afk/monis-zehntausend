@@ -6287,5 +6287,106 @@ window.mergePlayersFromSharedState = function(sharedPlayers){
 })();
 </script>
 
+
+<script>
+/* ===== IDENTITY CONSISTENCY FIX ===== */
+
+(function(){
+
+  function getStablePlayerName(){
+
+    const input =
+      document.getElementById('playerNameInput');
+
+    const existing =
+      localStorage.getItem('z10_player_name');
+
+    const value =
+      input?.value?.trim() ||
+      existing ||
+      'Spieler';
+
+    localStorage.setItem(
+      'z10_player_name',
+      value
+    );
+
+    return value;
+  }
+
+  window.getLocalPlayerObject = function(){
+
+    const id = String(window.localPlayerId);
+
+    const players =
+      window.gameState?.players || {};
+
+    const normalized =
+      Array.isArray(players)
+        ? players
+        : Object.values(players);
+
+    return normalized.find(
+      p => p && String(p.id) === id
+    );
+  };
+
+  window.isMyTurn = function(){
+
+    const myId =
+      String(window.localPlayerId || '');
+
+    const activeId =
+      String(window.gameState?.activePlayerId || '');
+
+    return myId === activeId;
+  };
+
+  window.safeEnsureIdentity = async function(){
+
+    if(!window.firebase || !firebase.database) return;
+
+    const player = {
+      id: String(window.localPlayerId),
+      name: getStablePlayerName(),
+      online: true,
+      lastSeen: Date.now()
+    };
+
+    const ref =
+      firebase.database()
+      .ref(
+        'z10_games/duesseldorf/players/' +
+        player.id
+      );
+
+    await ref.update(player);
+
+    if(
+      !window.gameState.activePlayerId
+    ){
+
+      await firebase.database()
+        .ref('z10_games/duesseldorf')
+        .update({
+          activePlayerId: player.id
+        });
+    }
+  };
+
+  const oldJoin = window.joinRoom;
+
+  window.joinRoom = async function(){
+
+    await safeEnsureIdentity();
+
+    if(typeof oldJoin === 'function'){
+      return oldJoin.apply(this, arguments);
+    }
+  };
+
+})();
+</script>
+
 </body>
 </html>
