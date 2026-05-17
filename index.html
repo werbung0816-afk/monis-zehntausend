@@ -1320,6 +1320,92 @@ function normalizePlayersArray(players){
 }
 </style>
 
+
+<style>
+@media (max-width: 1100px){
+
+  body{
+    padding:6px !important;
+  }
+
+  .layout{
+    display:flex !important;
+    flex-direction:column !important;
+    gap:8px !important;
+  }
+
+  .panel{
+    padding:10px !important;
+    border-radius:16px !important;
+  }
+
+  .logo h1{
+    font-size:28px !important;
+    line-height:1 !important;
+  }
+
+  .logo p{
+    font-size:13px !important;
+    margin-top:0 !important;
+  }
+
+  .stats{
+    grid-template-columns:1fr 1fr !important;
+    gap:6px !important;
+  }
+
+  .stat{
+    padding:6px !important;
+    border-radius:12px !important;
+  }
+
+  .stat .v{
+    font-size:28px !important;
+  }
+
+  .player{
+    padding:8px !important;
+    border-radius:14px !important;
+    margin-bottom:6px !important;
+  }
+
+  .player .score{
+    font-size:22px !important;
+  }
+
+  .diceWrap{
+    min-height:80px !important;
+    padding:6px !important;
+    margin:8px 0 !important;
+    gap:6px !important;
+    border-radius:16px !important;
+  }
+
+  .die{
+    width:52px !important;
+    height:52px !important;
+    border-radius:12px !important;
+  }
+
+  .buttons{
+    grid-template-columns:1fr !important;
+    gap:6px !important;
+  }
+
+  button{
+    padding:10px !important;
+    font-size:15px !important;
+    border-radius:12px !important;
+  }
+
+  .scoreTable,
+  .cup,
+  .log{
+    display:none !important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div id="backToLobbyBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99998;background:rgba(10,6,20,.97);backdrop-filter:blur(10px);padding:8px 16px;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(139,92,246,.3)">
@@ -1328,42 +1414,7 @@ function normalizePlayersArray(players){
     <button onclick="showLobbyOverlay()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(139,92,246,.5);background:rgba(139,92,246,.15);color:#a78bfa;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">📋 Zur Lobby</button>
     <button onclick="forceReset()" style="padding:7px 16px;border-radius:8px;border:1px solid rgba(239,68,68,.4);background:rgba(239,68,68,.15);color:#f87171;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer">🗑 Alles löschen &amp; neu</button>
   </div>
-<div id="gameModeWrap" style="margin-top:18px;">
-  <div style="font-size:20px;font-weight:800;margin-bottom:10px;">Spielmodus</div>
-  <div style="display:flex;gap:12px;flex-wrap:wrap;">
-    <button type="button" id="modeFullBtn" class="countBtn activeCount">Volles Spiel</button>
-    <button type="button" id="modeQuickBtn" class="countBtn">Schnelle 10</button>
-  </div>
-</div>
 
-<script>
-(function(){
-  const KEY = 'z10_game_mode';
-
-  function apply(mode){
-    localStorage.setItem(KEY, mode);
-
-    const full = document.getElementById('modeFullBtn');
-    const quick = document.getElementById('modeQuickBtn');
-
-    if(full && quick){
-      full.classList.toggle('activeCount', mode === 'full');
-      quick.classList.toggle('activeCount', mode === 'quick10');
-    }
-
-    window.Z10_GAME_MODE = mode;
-  }
-
-  document.addEventListener('click', function(e){
-    if(e.target && e.target.id === 'modeFullBtn') apply('full');
-    if(e.target && e.target.id === 'modeQuickBtn') apply('quick10');
-  });
-
-  window.addEventListener('DOMContentLoaded', function(){
-    apply(localStorage.getItem(KEY) || 'full');
-  });
-})();
-</script>
 
 </div>
 <div id="quick10Counter">1 / 10</div>
@@ -3449,6 +3500,48 @@ border-radius:20px;
   2. Rechts auf <b>Beitreten</b> klicken<br>
   3. Als Host: <b>Spiel starten</b> klicken
 </div>
+<div id="gameModeWrap" style="margin-top:22px;padding:18px;border-radius:20px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);">
+  <div style="font-size:22px;font-weight:900;margin-bottom:14px;">Spielmodus</div>
+
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <label style="display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;cursor:pointer;">
+      <input type="radio" name="gameMode" value="full" checked style="transform:scale(1.35);">
+      Volles Spiel
+    </label>
+
+    <label style="display:flex;align-items:center;gap:12px;font-size:20px;font-weight:700;cursor:pointer;">
+      <input type="radio" name="gameMode" value="quick10" style="transform:scale(1.35);">
+      Schnelle 10
+    </label>
+  </div>
+</div>
+
+<script>
+(function(){
+  const KEY = 'z10_game_mode';
+
+  function applyMode(mode){
+    localStorage.setItem(KEY, mode);
+    window.Z10_GAME_MODE = mode;
+  }
+
+  document.addEventListener('change', function(e){
+    if(e.target && e.target.name === 'gameMode'){
+      applyMode(e.target.value);
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', function(){
+    const mode = localStorage.getItem(KEY) || 'full';
+    const radio = document.querySelector('input[name="gameMode"][value="' + mode + '"]');
+    if(radio){
+      radio.checked = true;
+    }
+    applyMode(mode);
+  });
+})();
+</script>
+
 
 <button onclick="forceReset()" style="
   width:100%;padding:9px;border-radius:10px;
