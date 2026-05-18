@@ -3360,12 +3360,28 @@ window.mpConnect = async function(){
         ? await _asPlayer(name, room, slot, MP._ref)
         : await _asSpectator();
     } else {
-      // Spiel läuft — prüfen ob KI-Spieler verfügbar zum Übernehmen
+      // Spiel läuft — KI mit wenigsten Punkten übernehmen
       const state = room.state;
-      const pArr = state?.players ? (Array.isArray(state.players) ? state.players : Object.values(state.players)) : [];
-      const aiIdx = pArr.findIndex(p => p && p.isAI);
-      if(aiIdx >= 0){
-        await _asReplacement(name, aiIdx, MP._ref);
+      let bestKey = null, bestScore = Infinity;
+
+      if(state?.players){
+        // Firebase speichert Arrays als Objekte {"0":{...},"1":{...}} — Keys erhalten!
+        const playersObj = state.players;
+        const keys = Array.isArray(playersObj)
+          ? Object.keys(playersObj)          // numerische Indices
+          : Object.keys(playersObj);          // Firebase-Objekt-Keys
+
+        keys.forEach(k => {
+          const p = playersObj[k];
+          if(p && p.isAI && (p.score||0) < bestScore){
+            bestScore = p.score||0;
+            bestKey = k;
+          }
+        });
+      }
+
+      if(bestKey !== null){
+        await _asReplacement(name, bestKey, MP._ref);
       } else {
         await _asSpectator();
       }
@@ -3412,18 +3428,21 @@ async function _asSpectator(){
 }
 
 // Einstieg während laufendem Spiel: KI-Spieler übernehmen
-async function _asReplacement(name, aiIdx, ref){
-  // Spieler-Name + isAI=false in Firebase aktualisieren
-  await ref.child('state/players/'+aiIdx+'/name').set(name);
-  await ref.child('state/players/'+aiIdx+'/isAI').set(false);
-  await ref.child('players/'+aiIdx).update({name, isAI:false});
+async function _asReplacement(name, playerKey, ref){
+  // playerKey ist der Firebase-String-Key ("0","1","2"…)
+  const idx = parseInt(playerKey);
+
+  // Nur diesen einen Spieler patchen — kein vollständiges Set
+  await ref.child('state/players/'+playerKey+'/name').set(name);
+  await ref.child('state/players/'+playerKey+'/isAI').set(false);
+  await ref.child('players/'+playerKey).update({name, isAI:false});
   await ref.update({lastActivity:Date.now()});
 
-  MP.on=true; MP.host=false; MP.myIdx=aiIdx;
+  MP.on=true; MP.host=false; MP.myIdx=idx;
   _hideMPOverlay();
   MP.listen();
   if(typeof setStatus==='function')
-    setStatus('✅ Du spielst jetzt als '+name+' (KI übernommen)');
+    setStatus('✅ Du spielst jetzt als '+name+' (KI Platz '+idx+' übernommen)');
 }
 
 // ── Host startet das Spiel ──
