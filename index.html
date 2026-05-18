@@ -15,12 +15,12 @@ radial-gradient(circle at top right, rgba(255,79,216,.25), transparent 35%),
 linear-gradient(180deg,#050111,#120523);
 color:#fff;
 min-height:100vh;
-padding:20px;
+padding:14px;
 }
 .layout{
 display:grid;
-grid-template-columns:320px 1fr 320px;
-gap:20px;
+grid-template-columns:280px 1fr;
+gap:14px;
 }
 .panel{
 background:rgba(10,12,38,.85);
@@ -43,8 +43,8 @@ margin-top:10px;
 color:#ff9ef0;
 }
 .player{
-padding:18px;
-margin-bottom:14px;
+padding:12px 14px;
+margin-bottom:8px;
 border-radius:22px;
 background:rgba(255,255,255,.04);
 border:1px solid rgba(255,255,255,.08);
@@ -54,7 +54,7 @@ border:1px solid #53f6ff;
 box-shadow:0 0 25px rgba(83,246,255,.3);
 }
 .player .score{
-font-size:42px;
+font-size:32px;
 font-weight:900;
 }
 .stats{
@@ -64,20 +64,20 @@ gap:18px;
 margin-bottom:20px;
 }
 .stat{
-padding:20px;
-border-radius:24px;
+padding:14px;
+border-radius:18px;
 background:rgba(255,255,255,.04);
 text-align:center;
 }
 .stat .v{
-font-size:62px;
+font-size:48px;
 font-weight:900;
 }
 
 
 .cup{
-width:140px;
-height:230px;
+width:110px;
+height:180px;
 margin:auto;
 position:relative;
 border-radius:18px 18px 44px 44px;
@@ -125,21 +125,21 @@ filter:blur(7px);
 
 .diceWrap{
 display:flex;
-gap:22px;
+gap:14px;
 justify-content:center;
 flex-wrap:wrap;
-margin:30px 0;
-min-height:420px;padding:28px;border-radius:34px;background:rgba(120,40,255,.06);border:1px solid rgba(220,120,255,.22);box-shadow:0 0 35px rgba(180,80,255,.14) inset;
+margin:16px 0;
+min-height:200px;padding:18px;border-radius:28px;background:rgba(120,40,255,.06);border:1px solid rgba(220,120,255,.22);box-shadow:0 0 35px rgba(180,80,255,.14) inset;
 }
 
 .die{
-width:128px;
-height:128px;
-border-radius:30px;
+width:96px;
+height:96px;
+border-radius:22px;
 display:flex;
 align-items:center;
 justify-content:center;
-font-size:72px;
+font-size:54px;
 cursor:pointer;
 transition:.22s;
 position:relative;
@@ -209,8 +209,8 @@ background:rgba(143,95,255,.18);
 display:flex;
 flex-direction:column;
 gap:10px;
-margin-top:20px;
-max-height:500px;
+margin-top:12px;
+max-height:300px;
 overflow:auto;
 }
 .entry{
@@ -493,38 +493,7 @@ font-size:20px;
 }
 
 /* Responsive */
-@media (max-width: 980px){
 
-.layout{
-grid-template-columns:1fr !important;
-}
-
-.logo h1{
-font-size:58px !important;
-}
-
-.panel{
-padding:18px !important;
-}
-
-.die{
-width:82px !important;
-height:82px !important;
-}
-
-.pips{
-transform:scale(.72);
-}
-
-.buttons{
-grid-template-columns:1fr !important;
-}
-
-.stats{
-grid-template-columns:1fr !important;
-}
-
-}
 
 </style>
 
@@ -571,38 +540,7 @@ box-sizing:border-box;
 overflow-y:auto;
 }
 
-@media (max-width: 700px){
 
-#setupScreen > div{
-width:100% !important;
-max-width:100% !important;
-padding:26px !important;
-border-radius:28px !important;
-margin:12px auto !important;
-box-sizing:border-box !important;
-}
-
-#setupScreen h1{
-font-size:64px !important;
-line-height:.92 !important;
-word-break:break-word !important;
-}
-
-.countBtn{
-min-height:82px !important;
-font-size:38px !important;
-}
-
-#playerNameInput{
-font-size:28px !important;
-padding:18px !important;
-}
-
-button{
-touch-action:manipulation;
-}
-
-}
 
 </style>
 
@@ -611,204 +549,7 @@ touch-action:manipulation;
      Greift nur bei Smartphones im Hochformat
      ══════════════════════════════════════════ -->
 <style>
-@media (max-width: 480px) and (orientation: portrait){
 
-/* ── Grundlayout ── */
-body{
-  padding:10px !important;
-}
-.layout{
-  display:flex !important;
-  flex-direction:column !important;
-  gap:10px !important;
-}
-
-/* ── Logo: Mini-Header oben ── */
-.logo{
-  display:flex !important;
-  align-items:baseline !important;
-  gap:10px !important;
-  padding:6px 0 !important;
-}
-.logo h1{
-  font-size:36px !important;
-  line-height:1 !important;
-}
-.logo p{
-  font-size:14px !important;
-  margin-top:0 !important;
-}
-
-/* ── Spieler: kompakte Kacheln nebeneinander ── */
-#players{
-  display:flex !important;
-  flex-wrap:wrap !important;
-  gap:7px !important;
-}
-.player{
-  flex:1 1 calc(50% - 4px) !important;
-  min-width:0 !important;
-  padding:10px 12px !important;
-  border-radius:14px !important;
-  margin-bottom:0 !important;
-}
-.player .score{
-  font-size:28px !important;
-  line-height:1 !important;
-}
-.player > div:first-child{
-  font-size:13px !important;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-/* ── Stats: nebeneinander, kompakt ── */
-.stats{
-  grid-template-columns:1fr 1fr !important;
-  gap:8px !important;
-  margin-bottom:8px !important;
-}
-.stat{
-  padding:12px !important;
-  border-radius:16px !important;
-}
-.stat .v{
-  font-size:36px !important;
-}
-.stat > div:first-child{
-  font-size:11px !important;
-}
-
-/* ── Würfelfeld: CSS-Grid 3 Spalten ── */
-.diceWrap{
-  display:grid !important;
-  grid-template-columns:repeat(3,1fr) !important;
-  gap:10px !important;
-  padding:14px !important;
-  min-height:0 !important;
-  margin:10px 0 !important;
-}
-.die{
-  width:100% !important;
-  height:auto !important;
-  aspect-ratio:1 !important;
-  border-radius:18px !important;
-  font-size:0 !important; /* Emoji-Größe via pips */
-}
-.pips{
-  transform:scale(0.58) !important;
-}
-
-/* ── Würfelbecher ── */
-.cup{
-  width:80px !important;
-  height:130px !important;
-  grid-column:1/-1 !important;
-  margin:auto !important;
-}
-
-/* ── Aktions-Buttons: volle Breite gestapelt ── */
-.buttons{
-  display:flex !important;
-  flex-direction:column !important;
-  gap:9px !important;
-}
-.buttons button{
-  padding:16px !important;
-  font-size:18px !important;
-  border-radius:16px !important;
-  width:100% !important;
-}
-
-/* ── Neues Spiel Button ── */
-.newGameBtn, #newGameBtn{
-  padding:14px !important;
-  font-size:16px !important;
-  border-radius:14px !important;
-}
-
-/* ── Status ── */
-.status{
-  padding:11px 14px !important;
-  margin-top:8px !important;
-  font-size:13px !important;
-  border-radius:14px !important;
-}
-
-/* ── Log: kürzer ── */
-.log{
-  max-height:120px !important;
-  margin-top:8px !important;
-}
-.entry{
-  padding:8px 10px !important;
-  font-size:12px !important;
-  border-radius:10px !important;
-}
-
-/* ── Spielerwechsel-Overlay ── */
-#overlayName{
-  font-size:52px !important;
-}
-#overlayComment{
-  font-size:18px !important;
-  margin-top:12px !important;
-}
-
-/* ── Sieger-Overlay ── */
-.victoryStage{
-  padding:24px 16px !important;
-  gap:20px !important;
-}
-.bigComment{
-  font-size:24px !important;
-  max-width:100% !important;
-}
-.bigPlace{
-  font-size:52px !important;
-}
-
-/* ── Multiplayer-Overlay ── */
-#mp-overlay{
-  align-items:flex-start !important;
-  overflow-y:auto !important;
-}
-#mp-overlay > div{
-  width:100% !important;
-  max-width:100% !important;
-  border-radius:0 0 24px 24px !important;
-  padding:20px 16px 24px !important;
-  min-height:auto !important;
-}
-#mp-name-input{
-  font-size:16px !important;
-}
-
-/* ── DevPanel ── */
-#devPanel{
-  bottom:8px !important;
-  right:8px !important;
-  gap:6px !important;
-}
-.devBtn{
-  padding:7px 11px !important;
-  font-size:11px !important;
-  border-radius:9px !important;
-}
-
-/* ── Quick10 Counter ── */
-#quick10Counter{
-  font-size:12px !important;
-  padding:5px 10px !important;
-}
-
-/* ── Log-Panel im rechten Panel verstecken auf kleinen Phones ── */
-.panel:last-child{
-  display:none !important;
-}
-
-}
 
 </style>
 
@@ -988,10 +729,7 @@ border:2px solid rgba(255,255,255,.08) !important;
 box-shadow:0 0 18px rgba(83,246,255,.12);
 }
 
-@media(max-width:700px){
-.modeSelect{grid-template-columns:1fr;}
-.modeBtn{font-size:22px;}
-}
+
 </style>
 
 
@@ -1038,24 +776,7 @@ box-shadow:
 0 0 32px rgba(0,180,255,.12);
 }
 
-@media(max-width:700px){
-.logoArt{
-width:120px;
-height:82px;
-top:8px;
-right:-10px;
-}
 
-.logo h1{
-max-width:66%;
-font-size:46px !important;
-}
-
-#quick10Counter{
-font-size:34px;
-padding:12px 22px;
-}
-}
 </style>
 
 
@@ -1103,23 +824,7 @@ box-shadow:
 0 0 32px rgba(0,180,255,.12);
 }
 
-@media(max-width:700px){
-.inlineLogoArt{
-width:92px;
-height:64px;
-margin-top:6px;
-}
 
-.logo h1{
-font-size:42px !important;
-gap:8px;
-}
-
-#quick10Counter{
-font-size:34px;
-padding:12px 22px;
-}
-}
 </style>
 
 
@@ -1144,13 +849,7 @@ box-shadow:
 0 0 34px rgba(0,180,255,.14);
 }
 
-@media(max-width:700px){
-#quick10Counter{
-font-size:30px;
-padding:10px 20px;
-top:10px;
-}
-}
+
 </style>
 
 </head>
@@ -1344,30 +1043,8 @@ Mindestens 250 Punkte nötig, um einen Zug sichern zu können.
 
 </div>
 
-<div class="panel">
-<div style="letter-spacing:4px;opacity:.6">PUNKTEÜBERSICHT</div>
-
-<div class="scoreTable">
-<div><span>1er</span><strong>100</strong></div>
-<div><span>5er</span><strong>50</strong></div>
-
-<div><span>3×2</span><strong>200</strong></div>
-<div><span>3×3</span><strong>300</strong></div>
-<div><span>3×4</span><strong>400</strong></div>
-<div><span>3×5</span><strong>500</strong></div>
-<div><span>3×6</span><strong>600</strong></div>
-<div><span>3×1</span><strong>1000</strong></div>
-
-<div><span>4er Pasch</span><strong>×2</strong></div>
-<div><span>5er Pasch</span><strong>×4</strong></div>
-
-<div><span>Straße</span><strong>2000</strong></div>
-<div><span>Mindestwurf</span><strong>250</strong></div>
-</div>
-
-
-<div class="log" id="log"></div>
-</div>
+<!-- Log ausgeblendet — Einträge per addLog() bleiben im JS aktiv, aber unsichtbar -->
+<div id="log" style="display:none"></div>
 
 </div>
 
@@ -3838,6 +3515,53 @@ window.addEventListener('load', ()=>{
 
 })();
 </script>
+
+
+<!-- ── Punkteübersicht: Button + Overlay ── -->
+<button onclick="document.getElementById('scoreOverlay').style.display='flex'"
+  style="
+  position:fixed;bottom:20px;right:20px;z-index:99999;
+  padding:10px 18px;border:none;border-radius:14px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-family:inherit;font-size:14px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(10px);
+">📊 Punkte</button>
+
+<div id="scoreOverlay" style="
+  display:none;position:fixed;inset:0;z-index:999999;
+  align-items:center;justify-content:center;
+  background:rgba(5,2,20,.92);backdrop-filter:blur(16px);
+" onclick="this.style.display='none'">
+  <div style="
+    background:linear-gradient(160deg,#0d0821,#180e32);
+    border:1px solid rgba(139,92,246,.3);border-radius:24px;
+    padding:28px 32px;min-width:280px;max-width:360px;
+    box-shadow:0 0 60px rgba(139,92,246,.2);
+  " onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div style="font-weight:800;font-size:16px;letter-spacing:2px;color:rgba(255,255,255,.6)">PUNKTEÜBERSICHT</div>
+      <button onclick="document.getElementById('scoreOverlay').style.display='none'"
+        style="background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer;padding:0">✕</button>
+    </div>
+    <div class="scoreTable">
+      <div><span>1er</span><strong>100</strong></div>
+      <div><span>5er</span><strong>50</strong></div>
+      <div><span>3×2</span><strong>200</strong></div>
+      <div><span>3×3</span><strong>300</strong></div>
+      <div><span>3×4</span><strong>400</strong></div>
+      <div><span>3×5</span><strong>500</strong></div>
+      <div><span>3×6</span><strong>600</strong></div>
+      <div><span>3×1</span><strong>1000</strong></div>
+      <div><span>4er Pasch</span><strong>×2</strong></div>
+      <div><span>5er Pasch</span><strong>×4</strong></div>
+      <div><span>Straße</span><strong>2000</strong></div>
+      <div><span>Mindestwurf</span><strong>250</strong></div>
+    </div>
+    <div style="margin-top:14px;text-align:center;font-size:12px;color:rgba(255,255,255,.3)">
+      Tippe irgendwo außen zum Schließen
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
