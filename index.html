@@ -1834,11 +1834,12 @@ renderPlayers();
 renderDice();
 renderStats();
 
-showOverlay(players[currentPlayer].name, comment);
+// Solo: Overlay sofort lokal. MP: via Firebase-Echo für alle Clients (inkl. dieser)
+if(!MP.on) showOverlay(players[currentPlayer].name, comment);
 
 setStatus(players[currentPlayer].name + " ist am Zug. Jetzt würfeln.");
 
-// Fix 2: Overlay + Spielstand an alle Clients pushen
+// Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
 if(MP.on) MP.push();
 window._pendingOverlay = null;
@@ -3184,6 +3185,8 @@ const MP = {
       players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
       currentPlayer, dice:[...dice], selected:[...selected],
       roundPoints, mustSecure, hasRolledThisTurn, aiBusy,
+      // Runden-Sync (Schnelle 10)
+      currentRound: window.currentRound || 1,
       // Overlay-Sync: Wechselkommentar an alle Clients
       overlay: window._pendingOverlay || null,
       // Classic-Ende-Sync
@@ -3236,6 +3239,12 @@ function hydrateMPState(s){
     window.currentRound = window.currentRound || 1;
   }
 
+  // Runden-Sync (Schnelle 10)
+  if(typeof s.currentRound === 'number' && s.currentRound !== window.currentRound){
+    window.currentRound = s.currentRound;
+    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
+  }
+
   // Classic-Ende-Flag synchronisieren
   if(s.classicEndBy !== null && s.classicEndBy !== undefined){
     if(window._classicEndBy === undefined){
@@ -3262,9 +3271,14 @@ function hydrateMPState(s){
 
   renderPlayers(); renderDice(); renderStats();
 
-  // Fix 2: Wechselkommentar auf Gast anzeigen (Host zeigt ihn lokal)
-  if(!MP.host && s.overlay && s.overlay.name){
-    setTimeout(()=> showOverlay(s.overlay.name, s.overlay.comment||''), 100);
+  // Fix 2: Wechselkommentar auf allen Clients anzeigen
+  // Eigenen nextPlayer()-Aufruf nicht doppelt zeigen — _overlayShownAt merkt sich den Zeitpunkt
+  if(s.overlay && s.overlay.name){
+    const age = Date.now() - (s.ts || 0);
+    // Nur zeigen wenn der State frisch ist (< 3s) und nicht gerade lokal ausgelöst
+    if(age < 3000){
+      setTimeout(()=> showOverlay(s.overlay.name, s.overlay.comment||''), 80);
+    }
   }
 
   const isAI   = players[currentPlayer]?.isAI;
