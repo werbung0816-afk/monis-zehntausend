@@ -3242,7 +3242,15 @@ window.mpConnect = async function(){
     const snap = await MP._ref.once('value');
     const room  = snap.val();
 
-    if(!room){
+    // Raum gilt als veraltet wenn ts älter als 15 Minuten
+    const STALE_MS = 15 * 60 * 1000;
+    const isStale  = room && (Date.now() - (room.ts || 0)) > STALE_MS;
+
+    if(!room || isStale){
+      if(isStale){
+        console.log('[MP] Veralteter Raum — wird überschrieben');
+        await MP._ref.remove().catch(()=>{});
+      }
       await _asHost(name, MP._ref);
     } else if(room.status==='waiting'){
       const rp   = fixArr(room.players);
@@ -3350,6 +3358,10 @@ window.mpHostStart = async function(){
 
 // ── Raum verlassen ──
 window.mpLeave = function(){
+  // Host räumt auf — Raum aus Firebase löschen
+  if(MP.host && MP._ref){
+    MP._ref.remove().catch(()=>{});
+  }
   MP.stop(); _lastTs=0;
   document.getElementById('mp-lobby-screen').style.display='block';
   document.getElementById('mp-waiting-screen').style.display='none';
@@ -3393,12 +3405,20 @@ function _startRoomWatcher(){
     if(!room){
       badge.textContent='⚪ Kein Raum aktiv — du erstellst ihn';
       badge.style.borderColor='rgba(139,92,246,.2)';
+      badge.innerHTML = '⚪ Kein Raum aktiv — du erstellst ihn';
     } else if(room.status==='waiting'){
       const n=fixArr(room.players).filter(p=>p&&p.name&&!p.empty).length;
-      badge.textContent=`🟢 Warteraum — ${n} / ${room.NP||4} Spieler · Host: ${room.hostName||'?'}`;
+      const age = Math.round((Date.now()-(room.ts||0))/60000);
+      const staleHint = age > 15 ? ` <span style="color:rgba(251,191,36,.7)">(${age} Min. alt)</span>` : '';
+      badge.innerHTML=`🟢 Warteraum — ${n} / ${room.NP||4} Spieler · Host: ${room.hostName||'?'}${staleHint}`;
       badge.style.borderColor='rgba(74,222,128,.3)';
     } else if(room.status==='playing'){
-      badge.textContent='🟡 Spiel läuft — du trittst als Zuschauer bei';
+      const age = Math.round((Date.now()-(room.ts||0))/60000);
+      badge.innerHTML=`🟡 Spiel läuft — du trittst als Zuschauer bei &nbsp;
+        <button onclick="mpResetRoom()" style="
+          font-size:11px;padding:3px 9px;border:1px solid rgba(239,68,68,.5);border-radius:8px;
+          background:rgba(239,68,68,.12);color:rgba(239,68,68,.8);cursor:pointer;font-family:inherit;
+        ">Raum zurücksetzen</button>`;
       badge.style.borderColor='rgba(251,191,36,.3)';
     }
   });
@@ -3408,6 +3428,21 @@ function _updateModeLabel(mode){
   const el = document.getElementById('mp-mode-label');
   if(el) el.textContent = mode==='quick10' ? 'Schnelle 10' : 'Classic';
 }
+
+// ── Raum manuell zurücksetzen (bei hängendem alten Raum) ──
+window.mpResetRoom = async function(){
+  const ref = roomRef();
+  if(!ref) return;
+  try{
+    await ref.remove();
+    const badge = document.getElementById('mp-room-badge');
+    if(badge){ badge.textContent='✅ Raum gelöscht — jetzt Verbinden drücken'; badge.style.borderColor='rgba(74,222,128,.3)'; }
+    const btn = document.getElementById('mp-connect-btn');
+    if(btn){ btn.disabled=false; btn.textContent='Verbinden →'; }
+  } catch(e){
+    console.warn('Reset fehlgeschlagen:', e);
+  }
+};
 
 // ── UI Helpers ──
 window.showMPOverlay = function(){
