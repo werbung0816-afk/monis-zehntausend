@@ -1740,25 +1740,29 @@ addLog(players[currentPlayer].name + " beendet den Zug mit " + roundPoints + " P
 
 if(players[currentPlayer].score >= 10000){
 
-launchConfetti();
-
-setStatus("🏆 " + players[currentPlayer].name + " gewinnt das Spiel!");
-
-addLog("🏆 " + players[currentPlayer].name + " hat 10.000 Punkte erreicht.");
-
-renderPlayers();
-
-setTimeout(()=>{
-
-if(confirm(players[currentPlayer].name + " hat gewonnen! Neues Spiel starten?")){
-
-location.reload();
-
+// Classic: Letzte-Runde-Logik — alle anderen dürfen noch einmal
+if(window.gameMode !== 'quick10' && window._classicEndBy === undefined){
+  window._classicEndBy = currentPlayer; // wer hat ausgelöst
+  launchConfetti();
+  const wName = players[currentPlayer].name;
+  setStatus('🏆 '+wName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉');
+  addLog('🏆 '+wName+' hat 10.000 Punkte — letzte Runde läuft!');
+  renderPlayers();
+  // nicht return — normal zu nextPlayer() weiterlaufen lassen
+} else if(window.gameMode === 'quick10'){
+  // Schnelle 10: alter Pfad bleibt
+  launchConfetti();
+  setStatus('🏆 '+players[currentPlayer].name+' gewinnt!');
+  addLog('🏆 '+players[currentPlayer].name+' hat 10.000 Punkte erreicht.');
+  renderPlayers();
+  setTimeout(()=>{
+    if(confirm(players[currentPlayer].name+' hat gewonnen! Neues Spiel starten?')){
+      location.reload();
+    }
+  },1200);
+  return;
 }
 
-},1200);
-
-return;
 }
 
 if(roundPoints>=1000){
@@ -1815,6 +1819,14 @@ hasRolledThisTurn = false;
 currentPlayer++;
 if(currentPlayer >= players.length) currentPlayer = 0;
 
+// Classic-Ende: sind alle anderen dran gewesen?
+if(window.gameMode !== 'quick10' && window._classicEndBy !== undefined){
+  if(currentPlayer === window._classicEndBy){
+    _triggerClassicFinalRanking();
+    return;
+  }
+}
+
 // Noch KEINE Würfel anzeigen
 dice = [];
 
@@ -1825,7 +1837,11 @@ renderStats();
 showOverlay(players[currentPlayer].name, comment);
 
 setStatus(players[currentPlayer].name + " ist am Zug. Jetzt würfeln.");
+
+// Fix 2: Overlay + Spielstand an alle Clients pushen
+window._pendingOverlay = {name: players[currentPlayer].name, comment};
 if(MP.on) MP.push();
+window._pendingOverlay = null;
 
 if(players[currentPlayer].isAI){
 
@@ -1838,6 +1854,34 @@ aiTurn();
 
 
 
+
+function _triggerClassicFinalRanking(){
+  if(window._classicRankingDone) return;
+  window._classicRankingDone = true;
+  window._classicEndBy = undefined;
+
+  const sorted = [...players].sort((a,b)=>b.score-a.score);
+  launchConfetti();
+  addLog('🏆 Classic beendet! Endabrechnung läuft…');
+
+  // MP: alle Clients informieren
+  if(MP.on){
+    window._pendingClassicGameOver = true;
+    MP.push();
+    window._pendingClassicGameOver = false;
+  }
+
+  // Siegerpodium (nutzt vorhandene finishQuick10-Funktion)
+  setTimeout(()=>{
+    if(typeof buildVictorySequenceFromPlayers === 'function'){
+      window.players = sorted;
+      buildVictorySequenceFromPlayers();
+      document.getElementById('victoryTestBtn')?.click();
+    } else if(typeof finishQuick10 === 'function'){
+      finishQuick10(sorted);
+    }
+  }, 800);
+}
 
 function selectPlayerCount(count, el){
 
@@ -3140,6 +3184,11 @@ const MP = {
       players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
       currentPlayer, dice:[...dice], selected:[...selected],
       roundPoints, mustSecure, hasRolledThisTurn, aiBusy,
+      // Overlay-Sync: Wechselkommentar an alle Clients
+      overlay: window._pendingOverlay || null,
+      // Classic-Ende-Sync
+      classicEndBy  : window._classicEndBy ?? null,
+      classicGameOver: !!window._pendingClassicGameOver,
       ts: Date.now()
     };
     try{ await this._ref.child('state').set(state); }catch(e){ console.warn('MP.push:',e); }
@@ -3187,6 +3236,22 @@ function hydrateMPState(s){
     window.currentRound = window.currentRound || 1;
   }
 
+  // Classic-Ende-Flag synchronisieren
+  if(s.classicEndBy !== null && s.classicEndBy !== undefined){
+    if(window._classicEndBy === undefined){
+      window._classicEndBy = s.classicEndBy;
+      const wName = players[s.classicEndBy]?.name || '?';
+      if(typeof setStatus==='function')
+        setStatus('🏆 '+wName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉');
+    }
+  }
+
+  // Classic-Siegerehrung auf Gast auslösen
+  if(s.classicGameOver && !window._classicRankingDone){
+    _triggerClassicFinalRanking();
+    return;
+  }
+
   if(Array.isArray(s.players)) players = s.players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
   if(typeof s.currentPlayer==='number') currentPlayer = s.currentPlayer;
   dice     = Array.isArray(s.dice)     ? [...s.dice]     : [];
@@ -3196,6 +3261,11 @@ function hydrateMPState(s){
   if(typeof s.hasRolledThisTurn==='boolean') hasRolledThisTurn = s.hasRolledThisTurn;
 
   renderPlayers(); renderDice(); renderStats();
+
+  // Fix 2: Wechselkommentar auf Gast anzeigen (Host zeigt ihn lokal)
+  if(!MP.host && s.overlay && s.overlay.name){
+    setTimeout(()=> showOverlay(s.overlay.name, s.overlay.comment||''), 100);
+  }
 
   const isAI   = players[currentPlayer]?.isAI;
   const isMine = !isAI && currentPlayer === MP.myIdx;
@@ -3344,6 +3414,10 @@ window.mpHostStart = async function(){
     players:finalP.map(p=>({name:p.name,isAI:p.isAI})),
     state
   });
+
+  // Classic-Ende-Flags zurücksetzen
+  window._classicEndBy       = undefined;
+  window._classicRankingDone = false;
 
   const ss=document.getElementById('setupScreen');
   if(ss) ss.style.display='none';
