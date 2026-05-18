@@ -970,7 +970,7 @@ top:10px;
 position:fixed;
 inset:0;
 z-index:99999;
-display:flex;
+display:none;
 align-items:center;
 justify-content:center;
 background:radial-gradient(circle at top,#2d1042 0%,#090014 60%,#05000d 100%);
@@ -1033,21 +1033,13 @@ margin-bottom:34px;
 
 <div class="modeSelect">
 
-<button class="modeBtn" onclick="showMPOverlay()" style="
-  background:linear-gradient(135deg,#8b5cf6,#ec4899);
-  border:none;width:100%;margin-bottom:10px;
-">
-🌐 Multiplayer
-<span class="modeDesc">Mit Freunden über Firebase spielen</span>
-</button>
-
 <button class="modeBtn fullGameBtn"
 onclick="
 window.gameMode='full';
 window.maxRounds=999999;
 startConfiguredGame();
 ">
-Volles Spiel
+Classic
 <span class="modeDesc">Klassisch bis 10.000 Punkte</span>
 </button>
 
@@ -2490,7 +2482,7 @@ document.addEventListener('click', function(e){
         updateQuick10Counter();
     }
 
-    if(txt.includes('Volles Spiel')){
+    if(txt.includes('Classic')){
         window.gameMode = 'full';
         updateQuick10Counter();
     }
@@ -2988,6 +2980,20 @@ document.getElementById('victoryTestBtn').click();
         </div>
       </div>
 
+      <!-- Spielmodus-Auswahl (nur Host relevant, wird via Firebase übertragen) -->
+      <div style="display:flex;gap:10px;margin-bottom:4px">
+        <button id="mp-mode-classic" onclick="mpSetMode('full',this)" style="
+          flex:1;padding:12px 10px;border:2px solid rgba(139,92,246,.6);border-radius:14px;
+          background:rgba(139,92,246,.2);color:#fff;font-family:'Outfit',sans-serif;
+          font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;
+        ">🏆 Classic</button>
+        <button id="mp-mode-quick" onclick="mpSetMode('quick10',this)" style="
+          flex:1;padding:12px 10px;border:2px solid rgba(255,255,255,.12);border-radius:14px;
+          background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-family:'Outfit',sans-serif;
+          font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;
+        ">⚡ Schnelle 10</button>
+      </div>
+
       <!-- Raum-Status Badge -->
       <div id="mp-room-badge" style="
         padding:12px 16px;border-radius:14px;
@@ -3020,6 +3026,13 @@ document.getElementById('victoryTestBtn').click();
       <div id="mp-player-slots" style="display:flex;flex-direction:column;gap:8px"></div>
 
       <div id="mp-waiting-sub" style="font-size:14px;color:rgba(255,255,255,.4);text-align:center"></div>
+
+      <!-- Modus-Anzeige im Warteraum (nur Host kann ändern) -->
+      <div id="mp-mode-display" style="
+        text-align:center;padding:10px;border-radius:12px;
+        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
+        font-size:14px;color:rgba(255,255,255,.6);
+      ">Modus: <b id="mp-mode-label" style="color:#fff">Classic</b></div>
 
       <button id="mp-start-btn" onclick="mpHostStart()" style="
         display:none;
@@ -3082,6 +3095,18 @@ const FB_CFG = {
 
 const ROOM_PATH = 'rooms/z10_main';
 let _db = null, _lastTs = 0, _roomWatcher = null;
+let _mpMode = 'full'; // vom Host gewählter Modus
+
+// ── Modus-Auswahl Toggle ──
+window.mpSetMode = function(mode, btn){
+  _mpMode = mode;
+  document.getElementById('mp-mode-classic').style.borderColor  = mode==='full'    ? 'rgba(139,92,246,.8)' : 'rgba(255,255,255,.12)';
+  document.getElementById('mp-mode-classic').style.background   = mode==='full'    ? 'rgba(139,92,246,.25)' : 'rgba(255,255,255,.04)';
+  document.getElementById('mp-mode-classic').style.color        = mode==='full'    ? '#fff' : 'rgba(255,255,255,.5)';
+  document.getElementById('mp-mode-quick').style.borderColor    = mode==='quick10' ? 'rgba(251,191,36,.8)' : 'rgba(255,255,255,.12)';
+  document.getElementById('mp-mode-quick').style.background     = mode==='quick10' ? 'rgba(251,191,36,.1)'  : 'rgba(255,255,255,.04)';
+  document.getElementById('mp-mode-quick').style.color          = mode==='quick10' ? '#fbbf24' : 'rgba(255,255,255,.5)';
+};
 
 // ── Firebase sofort beim Laden initialisieren (kein lazy-init) ──
 function initFirebase(){
@@ -3149,6 +3174,19 @@ window.MP = MP;
 // ── Hydrate: Firebase State → lokale Variablen → Render ──
 function hydrateMPState(s){
   if(!s) return;
+
+  // Overlay + Setup ausblenden sobald Spiel läuft
+  _hideMPOverlay();
+  const ss = document.getElementById('setupScreen');
+  if(ss) ss.style.display = 'none';
+
+  // Spielmodus aus Firebase-State übernehmen (Gast bekommt Modus vom Host)
+  if(s.mode){
+    window.gameMode    = s.mode;
+    window.maxRounds   = s.mode==='quick10' ? 10 : 999999;
+    window.currentRound = window.currentRound || 1;
+  }
+
   if(Array.isArray(s.players)) players = s.players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
   if(typeof s.currentPlayer==='number') currentPlayer = s.currentPlayer;
   dice     = Array.isArray(s.dice)     ? [...s.dice]     : [];
@@ -3229,9 +3267,10 @@ async function _asHost(name, ref){
   const maxP = parseInt(document.getElementById('mp-max-players')?.value||4);
   const pArr = [{name,isAI:false}];
   for(let i=1;i<maxP;i++) pArr.push({name:'',isAI:false,empty:true});
-  await ref.set({status:'waiting',NP:maxP,players:pArr,hostName:name,ts:Date.now()});
+  await ref.set({status:'waiting',NP:maxP,players:pArr,hostName:name,mode:_mpMode,ts:Date.now()});
   ref.onDisconnect().remove();
   MP.on=true; MP.host=true; MP.myIdx=0;
+  _updateModeLabel(_mpMode);
   document.getElementById('mp-start-btn').style.display='block';
   _showWaiting();
   MP.listen();
@@ -3243,6 +3282,7 @@ async function _asPlayer(name, room, slot, ref){
   await ref.child('players').set(rp);
   ref.child('players/'+slot).onDisconnect().set({name:'',isAI:false,empty:true});
   MP.on=true; MP.host=false; MP.myIdx=slot;
+  _updateModeLabel(room.mode||'full');
   _showWaiting();
   MP.listen();
 }
@@ -3276,10 +3316,18 @@ window.mpHostStart = async function(){
   players=finalP; currentPlayer=0; roundPoints=0;
   dice=[]; selected=[]; mustSecure=false; hasRolledThisTurn=false; aiBusy=false;
 
+  // Spielmodus setzen (Host)
+  const mode = room.mode || _mpMode || 'full';
+  window.gameMode    = mode;
+  window.maxRounds   = mode==='quick10' ? 10 : 999999;
+  window.currentRound = 1;
+
   const state={
     players:players.map(p=>({name:p.name,score:p.score,isAI:p.isAI})),
     currentPlayer:0,dice:[],selected:[],roundPoints:0,
-    mustSecure:false,hasRolledThisTurn:false,aiBusy:false,ts:Date.now()
+    mustSecure:false,hasRolledThisTurn:false,aiBusy:false,
+    mode,                        // Modus mitschicken
+    ts:Date.now()
   };
   _lastTs = state.ts;
 
@@ -3356,6 +3404,11 @@ function _startRoomWatcher(){
   });
 }
 
+function _updateModeLabel(mode){
+  const el = document.getElementById('mp-mode-label');
+  if(el) el.textContent = mode==='quick10' ? 'Schnelle 10' : 'Classic';
+}
+
 // ── UI Helpers ──
 window.showMPOverlay = function(){
   const el=document.getElementById('mp-overlay');
@@ -3371,7 +3424,11 @@ function _hideMPOverlay(){
   const el=document.getElementById('mp-overlay');
   if(el) el.style.display='none';
 }
-window.closeMPOverlay = function(){ _hideMPOverlay(); };
+window.closeMPOverlay = function(){
+  // Overlay bleibt immer erreichbar — nur ausblenden wenn Spiel läuft
+  // (wird automatisch durch hydrateMPState / mpHostStart versteckt)
+  _hideMPOverlay();
+};
 
 function _showWaiting(){
   document.getElementById('mp-lobby-screen').style.display='none';
@@ -3382,6 +3439,8 @@ function _showWaiting(){
 // ── Firebase beim Seitenladen sofort initialisieren ──
 window.addEventListener('load', ()=>{
   initFirebase();  // kein Warten — DB + Auth sofort starten
+  // MP-Overlay direkt zeigen — kein separater Setup-Screen mehr
+  window.showMPOverlay();
 });
 
 })();
