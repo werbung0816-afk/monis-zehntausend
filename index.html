@@ -3310,7 +3310,7 @@ const MP = {
   async push(){
     if(!this.on||!this._ref) return;
     const state = {
-      players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
+      players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI,id:p.id||null})),
       currentPlayer, dice:[...dice], selected:[...selected],
       roundPoints, mustSecure, hasRolledThisTurn, aiBusy,
       currentRound: window.currentRound || 1,
@@ -3436,7 +3436,6 @@ function hydrateMPState(s){
 
   if(typeof setStatus === 'function'){
     if(s.classicEndBy !== null && s.classicEndBy !== undefined){
-      // Classic-Endphase: Jubel-Hinweis hat immer Priorität
       const triggerName = players[s.classicEndBy]?.name || '?';
       const turnSuffix  = isMine ? ' — Du bist dran!' : ` — ${players[currentPlayer]?.name||'?'} ist dran`;
       setStatus('🏆 '+triggerName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉'+turnSuffix);
@@ -3444,8 +3443,12 @@ function hydrateMPState(s){
       setStatus('⏳ '+players[currentPlayer]?.name+' ist am Zug…');
     }
   }
-  if(MP.host && isAI && !aiBusy){
-    aiBusy = false;
+
+  // KI-Zug nur bei Reconnect triggern (nicht bei normalem Echo von eigenem Push)
+  // nextPlayer() übernimmt die Schedulierung im normalen Spielfluss
+  const stateAge = Date.now() - (s.ts || 0);
+  if(MP.host && isAI && !aiBusy && stateAge > 3000){
+    // Alter State (> 3s) = Reconnect nach Reload — AI-Zug neu starten
     setTimeout(()=>{ if(players[currentPlayer]?.isAI) aiTurn(); }, 900);
   }
 }
@@ -3453,8 +3456,9 @@ function hydrateMPState(s){
 function _updateTurnButtons(canAct){
   document.querySelectorAll('button').forEach(btn=>{
     const t=(btn.innerText||'').trim();
-    if(['Würfeln','Sichern','Zug beenden'].includes(t)){
-      btn.disabled=!canAct; btn.style.opacity=canAct?'1':'0.45';
+    if(t.includes('Würfeln') || t.includes('Sichern') || t.includes('Zug beenden')){
+      btn.disabled=!canAct;
+      btn.style.opacity=canAct?'1':'0.45';
     }
   });
 }
