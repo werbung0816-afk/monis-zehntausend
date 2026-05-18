@@ -15,12 +15,12 @@ radial-gradient(circle at top right, rgba(255,79,216,.25), transparent 35%),
 linear-gradient(180deg,#050111,#120523);
 color:#fff;
 min-height:100vh;
-padding:14px;
+padding:20px;
 }
 .layout{
 display:grid;
-grid-template-columns:280px 1fr;
-gap:14px;
+grid-template-columns:320px 1fr 320px;
+gap:20px;
 }
 .panel{
 background:rgba(10,12,38,.85);
@@ -43,8 +43,8 @@ margin-top:10px;
 color:#ff9ef0;
 }
 .player{
-padding:12px 14px;
-margin-bottom:8px;
+padding:18px;
+margin-bottom:14px;
 border-radius:22px;
 background:rgba(255,255,255,.04);
 border:1px solid rgba(255,255,255,.08);
@@ -54,7 +54,7 @@ border:1px solid #53f6ff;
 box-shadow:0 0 25px rgba(83,246,255,.3);
 }
 .player .score{
-font-size:32px;
+font-size:42px;
 font-weight:900;
 }
 .stats{
@@ -64,20 +64,20 @@ gap:18px;
 margin-bottom:20px;
 }
 .stat{
-padding:14px;
-border-radius:18px;
+padding:20px;
+border-radius:24px;
 background:rgba(255,255,255,.04);
 text-align:center;
 }
 .stat .v{
-font-size:48px;
+font-size:62px;
 font-weight:900;
 }
 
 
 .cup{
-width:110px;
-height:180px;
+width:140px;
+height:230px;
 margin:auto;
 position:relative;
 border-radius:18px 18px 44px 44px;
@@ -125,21 +125,21 @@ filter:blur(7px);
 
 .diceWrap{
 display:flex;
-gap:14px;
+gap:22px;
 justify-content:center;
 flex-wrap:wrap;
-margin:16px 0;
-min-height:200px;padding:18px;border-radius:28px;background:rgba(120,40,255,.06);border:1px solid rgba(220,120,255,.22);box-shadow:0 0 35px rgba(180,80,255,.14) inset;
+margin:30px 0;
+min-height:420px;padding:28px;border-radius:34px;background:rgba(120,40,255,.06);border:1px solid rgba(220,120,255,.22);box-shadow:0 0 35px rgba(180,80,255,.14) inset;
 }
 
 .die{
-width:96px;
-height:96px;
-border-radius:22px;
+width:128px;
+height:128px;
+border-radius:30px;
 display:flex;
 align-items:center;
 justify-content:center;
-font-size:54px;
+font-size:72px;
 cursor:pointer;
 transition:.22s;
 position:relative;
@@ -209,8 +209,8 @@ background:rgba(143,95,255,.18);
 display:flex;
 flex-direction:column;
 gap:10px;
-margin-top:12px;
-max-height:300px;
+margin-top:20px;
+max-height:500px;
 overflow:auto;
 }
 .entry{
@@ -493,9 +493,15 @@ font-size:20px;
 }
 
 /* Responsive */
-
-
-</style>
+@media (max-width: 980px){
+.layout{ grid-template-columns:1fr !important; }
+.logo h1{ font-size:58px !important; }
+.panel{ padding:18px !important; }
+.die{ width:82px !important; height:82px !important; }
+.pips{ transform:scale(.72); }
+.buttons{ grid-template-columns:1fr !important; }
+.stats{ grid-template-columns:1fr !important; }
+}</style>
 
 
 <style>
@@ -1043,8 +1049,30 @@ Mindestens 250 Punkte nötig, um einen Zug sichern zu können.
 
 </div>
 
-<!-- Log ausgeblendet — Einträge per addLog() bleiben im JS aktiv, aber unsichtbar -->
-<div id="log" style="display:none"></div>
+<div class="panel">
+<div style="letter-spacing:4px;opacity:.6">PUNKTEÜBERSICHT</div>
+
+<div class="scoreTable">
+<div><span>1er</span><strong>100</strong></div>
+<div><span>5er</span><strong>50</strong></div>
+
+<div><span>3×2</span><strong>200</strong></div>
+<div><span>3×3</span><strong>300</strong></div>
+<div><span>3×4</span><strong>400</strong></div>
+<div><span>3×5</span><strong>500</strong></div>
+<div><span>3×6</span><strong>600</strong></div>
+<div><span>3×1</span><strong>1000</strong></div>
+
+<div><span>4er Pasch</span><strong>×2</strong></div>
+<div><span>5er Pasch</span><strong>×4</strong></div>
+
+<div><span>Straße</span><strong>2000</strong></div>
+<div><span>Mindestwurf</span><strong>250</strong></div>
+</div>
+
+
+<div class="log" id="log"></div>
+</div>
 
 </div>
 
