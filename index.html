@@ -1184,10 +1184,10 @@ Mindestens 250 Punkte nötig, um einen Zug sichern zu können.
 
 </div>
 
-<!-- Firebase SDK -->
-<script src="https://unpkg.com/firebase@10.8.1/firebase-app-compat.js"></script>
-<script src="https://unpkg.com/firebase@10.8.1/firebase-database-compat.js"></script>
-<script src="https://unpkg.com/firebase@10.8.1/firebase-auth-compat.js"></script>
+<!-- Firebase SDK — jsdelivr (zuverlässiger als unpkg) -->
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.8.1/firebase-app-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.8.1/firebase-database-compat.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/firebase@10.8.1/firebase-auth-compat.min.js"></script>
 
 <script>
 const possibleAINames = [
@@ -3021,7 +3021,7 @@ document.getElementById('victoryTestBtn').click();
 
       <div id="mp-waiting-sub" style="font-size:14px;color:rgba(255,255,255,.4);text-align:center"></div>
 
-      <button id="mp-start-btn" onclick="_onAuthReady(mpHostStart)" style="
+      <button id="mp-start-btn" onclick="mpHostStart()" style="
         display:none;
         width:100%;padding:18px;border:none;border-radius:18px;
         background:linear-gradient(135deg,#16a34a,#15803d);
@@ -3070,7 +3070,6 @@ document.getElementById('victoryTestBtn').click();
 (function(){
 'use strict';
 
-// ── Firebase-Konfiguration ──
 const FB_CFG = {
   apiKey           : "AIzaSyDkX_aEjOjUmwfMGxRAzwH8IjUPM0wx44s",
   authDomain       : "monis-zehntausend.firebaseapp.com",
@@ -3082,50 +3081,41 @@ const FB_CFG = {
 };
 
 const ROOM_PATH = 'rooms/z10_main';
+let _db = null, _lastTs = 0, _roomWatcher = null;
 
-let _db = null, _authReady = false, _authCbs = [], _lastTs = 0;
-
-function getDB(){
-  if(!_db){
-    if(!firebase.apps.length) firebase.initializeApp(FB_CFG);
-    _db = firebase.database();
-    firebase.auth().signInAnonymously()
-      .then(()=>{ _authReady=true; _authCbs.forEach(cb=>cb()); _authCbs=[]; })
-      .catch(()=>{ _authReady=true; _authCbs.forEach(cb=>cb()); _authCbs=[]; });
+// ── Firebase sofort beim Laden initialisieren (kein lazy-init) ──
+function initFirebase(){
+  if(_db) return _db;
+  if(typeof firebase === 'undefined'){
+    console.warn('[Z10] Firebase SDK nicht geladen — Multiplayer nicht verfügbar');
+    return null;
   }
+  if(!firebase.apps.length) firebase.initializeApp(FB_CFG);
+  _db = firebase.database();
+  // Anonymous Auth im Hintergrund starten (für DB-Regeln)
+  try{ firebase.auth().signInAnonymously().catch(()=>{}); }catch(e){}
   return _db;
 }
 
-function _onAuthReady(cb){
-  if(_authReady){ cb(); return; }
-  _authCbs.push(cb);
+function roomRef(){
+  const db = initFirebase();
+  if(!db) return null;
+  return db.ref(ROOM_PATH);
 }
-window._onAuthReady = _onAuthReady;
-
-function roomRef(){ return getDB().ref(ROOM_PATH); }
 function fixArr(v){ if(!v)return[];if(Array.isArray(v))return v;return Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]); }
 
 // ── MP Singleton ──
 const MP = {
-  on    : false,
-  host  : false,
-  myIdx : 0,
-  myName: '',
-  _ref  : null,
-  _sub  : null,
+  on:false, host:false, myIdx:0, myName:'',
+  _ref:null, _sub:null,
 
   async push(){
     if(!this.on||!this._ref) return;
     const state = {
-      players          : players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
-      currentPlayer,
-      dice             : [...dice],
-      selected         : [...selected],
-      roundPoints,
-      mustSecure,
-      hasRolledThisTurn,
-      aiBusy,
-      ts               : Date.now()
+      players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
+      currentPlayer, dice:[...dice], selected:[...selected],
+      roundPoints, mustSecure, hasRolledThisTurn, aiBusy,
+      ts: Date.now()
     };
     try{ await this._ref.child('state').set(state); }catch(e){ console.warn('MP.push:',e); }
   },
@@ -3135,12 +3125,11 @@ const MP = {
     this._sub = this._ref.on('value', snap=>{
       const room = snap.val();
       if(!room) return;
-      if(room.status === 'waiting'){ mpRenderWaiting(room); return; }
-      if(room.status === 'playing' && room.state){
+      if(room.status==='waiting'){ mpRenderWaiting(room); return; }
+      if(room.status==='playing' && room.state){
         const s = room.state;
         if(s.ts <= _lastTs) return;
         _lastTs = s.ts;
-        // Eigenen Index aktualisieren (Gast)
         if(!MP.host && room.players){
           const rp = fixArr(room.players);
           rp.forEach((p,i)=>{ if(p&&p.name===MP.myName&&!p.isAI) MP.myIdx=i; });
@@ -3151,7 +3140,7 @@ const MP = {
   },
 
   stop(){
-    if(this._ref && this._sub) this._ref.off('value', this._sub);
+    if(this._ref&&this._sub) this._ref.off('value',this._sub);
     Object.assign(this,{on:false,host:false,_ref:null,_sub:null,myIdx:0});
   }
 };
@@ -3161,23 +3150,22 @@ window.MP = MP;
 function hydrateMPState(s){
   if(!s) return;
   if(Array.isArray(s.players)) players = s.players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
-  if(typeof s.currentPlayer === 'number') currentPlayer = s.currentPlayer;
+  if(typeof s.currentPlayer==='number') currentPlayer = s.currentPlayer;
   dice     = Array.isArray(s.dice)     ? [...s.dice]     : [];
   selected = Array.isArray(s.selected) ? [...s.selected] : [];
-  if(typeof s.roundPoints       === 'number')  roundPoints       = s.roundPoints;
-  if(typeof s.mustSecure        === 'boolean') mustSecure        = s.mustSecure;
-  if(typeof s.hasRolledThisTurn === 'boolean') hasRolledThisTurn = s.hasRolledThisTurn;
+  if(typeof s.roundPoints==='number')       roundPoints       = s.roundPoints;
+  if(typeof s.mustSecure==='boolean')       mustSecure        = s.mustSecure;
+  if(typeof s.hasRolledThisTurn==='boolean') hasRolledThisTurn = s.hasRolledThisTurn;
 
   renderPlayers(); renderDice(); renderStats();
 
-  const isAI = players[currentPlayer]?.isAI;
-  const mine = !isAI && currentPlayer === MP.myIdx;
-  _updateTurnButtons(mine || isAI);
+  const isAI   = players[currentPlayer]?.isAI;
+  const isMine = !isAI && currentPlayer === MP.myIdx;
+  _updateTurnButtons(isMine || isAI);
 
-  if(!mine && !isAI && typeof setStatus === 'function'){
+  if(!isMine && !isAI && typeof setStatus==='function'){
     setStatus('⏳ '+players[currentPlayer]?.name+' ist am Zug…');
   }
-  // Host triggert KI-Zug
   if(MP.host && isAI && !aiBusy){
     aiBusy = false;
     setTimeout(()=>{ if(players[currentPlayer]?.isAI) aiTurn(); }, 900);
@@ -3188,16 +3176,15 @@ function _updateTurnButtons(canAct){
   document.querySelectorAll('button').forEach(btn=>{
     const t=(btn.innerText||'').trim();
     if(['Würfeln','Sichern','Zug beenden'].includes(t)){
-      btn.disabled     = !canAct;
-      btn.style.opacity = canAct ? '1' : '0.45';
+      btn.disabled=!canAct; btn.style.opacity=canAct?'1':'0.45';
     }
   });
 }
 
-// ── Verbinden ──
+// ── Verbinden (DIREKT — kein Auth-Gate) ──
 window.mpConnect = async function(){
   const nameEl = document.getElementById('mp-name-input');
-  const name = (nameEl?.value||'').trim();
+  const name   = (nameEl?.value||'').trim();
   if(!name){
     if(nameEl){ nameEl.style.borderColor='rgba(239,68,68,.7)'; nameEl.focus(); }
     return;
@@ -3208,49 +3195,51 @@ window.mpConnect = async function(){
   const btn = document.getElementById('mp-connect-btn');
   if(btn){ btn.disabled=true; btn.textContent='⏳ Verbinde…'; }
 
-  _onAuthReady(async ()=>{
-    try{
-      MP._ref = roomRef();
-      const snap = await MP._ref.once('value');
-      const room = snap.val();
-      if(!room){
-        await _asHost(name, MP._ref);
-      } else if(room.status === 'waiting'){
-        const rp = fixArr(room.players);
-        const slot = rp.findIndex((p,i)=>i>0&&(!p||!p.name||p.empty));
-        if(slot >= 0){
-          await _asPlayer(name, room, slot, MP._ref);
-        } else {
-          // Alle Slots voll → als Zuschauer
-          await _asSpectator();
-        }
-      } else {
-        // Spiel läuft → Zuschauer
-        await _asSpectator();
-      }
-      _startRoomWatcher();
-    } catch(e){
-      console.error('mpConnect:',e);
-      if(btn){ btn.disabled=false; btn.textContent='Verbinden →'; }
+  try{
+    // Firebase direkt nutzen — kein Warten auf Auth
+    MP._ref = roomRef();
+    if(!MP._ref){
+      throw new Error('Firebase SDK nicht geladen. Bitte Seite neu laden oder Adblocker deaktivieren.');
     }
-  });
+    const snap = await MP._ref.once('value');
+    const room  = snap.val();
+
+    if(!room){
+      await _asHost(name, MP._ref);
+    } else if(room.status==='waiting'){
+      const rp   = fixArr(room.players);
+      const slot = rp.findIndex((p,i)=>i>0&&(!p||!p.name||p.empty));
+      slot >= 0
+        ? await _asPlayer(name, room, slot, MP._ref)
+        : await _asSpectator();
+    } else {
+      await _asSpectator();
+    }
+    _startRoomWatcher();
+  } catch(e){
+    console.error('mpConnect:', e);
+    const errMsg = e?.message||'Unbekannter Fehler';
+    if(btn){ btn.disabled=false; btn.textContent='Verbinden →'; }
+    const badge = document.getElementById('mp-room-badge');
+    if(badge){ badge.textContent='❌ Fehler: '+errMsg; badge.style.borderColor='rgba(239,68,68,.4)'; }
+  }
 };
 
 async function _asHost(name, ref){
   const maxP = parseInt(document.getElementById('mp-max-players')?.value||4);
-  const pArr = [{name, isAI:false}];
-  for(let i=1;i<maxP;i++) pArr.push({name:'', isAI:false, empty:true});
-  await ref.set({ status:'waiting', NP:maxP, players:pArr, hostName:name, ts:Date.now() });
+  const pArr = [{name,isAI:false}];
+  for(let i=1;i<maxP;i++) pArr.push({name:'',isAI:false,empty:true});
+  await ref.set({status:'waiting',NP:maxP,players:pArr,hostName:name,ts:Date.now()});
   ref.onDisconnect().remove();
   MP.on=true; MP.host=true; MP.myIdx=0;
-  document.getElementById('mp-start-btn').style.display = 'block';
+  document.getElementById('mp-start-btn').style.display='block';
   _showWaiting();
   MP.listen();
 }
 
 async function _asPlayer(name, room, slot, ref){
   const rp = fixArr(room.players);
-  rp[slot] = {name, isAI:false};
+  rp[slot] = {name,isAI:false};
   await ref.child('players').set(rp);
   ref.child('players/'+slot).onDisconnect().set({name:'',isAI:false,empty:true});
   MP.on=true; MP.host=false; MP.myIdx=slot;
@@ -3269,71 +3258,61 @@ async function _asSpectator(){
 window.mpHostStart = async function(){
   if(!MP.host||!MP._ref) return;
   const snap = await MP._ref.once('value');
-  const room = snap.val(); if(!room) return;
-  const rp = fixArr(room.players);
-  const np = room.NP || 4;
+  const room  = snap.val(); if(!room) return;
+  const rp    = fixArr(room.players);
+  const np    = room.NP||4;
 
-  // Leere Slots mit KI auffüllen
-  const AI_NAMES = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
+  const AI_NAMES  = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
   const humanNames = rp.filter(p=>p&&p.name&&!p.empty).map(p=>p.name.toLowerCase());
-  const aiPool = shuffleArray(AI_NAMES.filter(n=>!humanNames.includes(n.toLowerCase())));
+  const aiPool    = shuffleArray(AI_NAMES.filter(n=>!humanNames.includes(n.toLowerCase())));
   let ai=0;
-  const finalP = [];
+  const finalP=[];
   for(let i=0;i<np;i++){
-    const p = rp[i];
-    if(p&&p.name&&!p.empty){
-      finalP.push({name:p.name, score:0, isAI:false});
-    } else {
-      finalP.push({name:(aiPool[ai]||('KI'+(ai+1)))+' (KI)', score:0, isAI:true}); ai++;
-    }
+    const p=rp[i];
+    if(p&&p.name&&!p.empty){ finalP.push({name:p.name,score:0,isAI:false}); }
+    else { finalP.push({name:(aiPool[ai]||('KI'+(ai+1)))+' (KI)',score:0,isAI:true}); ai++; }
   }
 
-  // Lokale Engine initialisieren
-  players = finalP;
-  currentPlayer = 0; roundPoints = 0;
-  dice = []; selected = []; mustSecure = false;
-  hasRolledThisTurn = false; aiBusy = false;
+  players=finalP; currentPlayer=0; roundPoints=0;
+  dice=[]; selected=[]; mustSecure=false; hasRolledThisTurn=false; aiBusy=false;
 
-  const state = {
-    players: players.map(p=>({name:p.name,score:p.score,isAI:p.isAI})),
-    currentPlayer:0, dice:[], selected:[], roundPoints:0,
-    mustSecure:false, hasRolledThisTurn:false, aiBusy:false, ts:Date.now()
+  const state={
+    players:players.map(p=>({name:p.name,score:p.score,isAI:p.isAI})),
+    currentPlayer:0,dice:[],selected:[],roundPoints:0,
+    mustSecure:false,hasRolledThisTurn:false,aiBusy:false,ts:Date.now()
   };
   _lastTs = state.ts;
 
   await MP._ref.update({
-    status: 'playing',
-    players: finalP.map(p=>({name:p.name, isAI:p.isAI})),
+    status:'playing',
+    players:finalP.map(p=>({name:p.name,isAI:p.isAI})),
     state
   });
 
-  // Setupscreen weg, Overlay weg
-  const ss = document.getElementById('setupScreen');
+  const ss=document.getElementById('setupScreen');
   if(ss) ss.style.display='none';
   _hideMPOverlay();
 
   renderPlayers(); renderDice(); renderStats();
-  showOverlay(players[0].name, '🎲 Spiel startet!');
+  showOverlay(players[0].name,'🎲 Spiel startet!');
   setStatus(players[0].name+' ist am Zug. Jetzt würfeln!');
 
-  if(players[0].isAI) setTimeout(()=>aiTurn(), 2400);
+  if(players[0].isAI) setTimeout(()=>aiTurn(),2400);
 };
 
 // ── Raum verlassen ──
 window.mpLeave = function(){
-  MP.stop();
-  _lastTs = 0;
-  document.getElementById('mp-lobby-screen').style.display = 'block';
-  document.getElementById('mp-waiting-screen').style.display = 'none';
-  const btn = document.getElementById('mp-connect-btn');
+  MP.stop(); _lastTs=0;
+  document.getElementById('mp-lobby-screen').style.display='block';
+  document.getElementById('mp-waiting-screen').style.display='none';
+  const btn=document.getElementById('mp-connect-btn');
   if(btn){ btn.disabled=false; btn.textContent='Verbinden →'; }
 };
 
 // ── Warteraum rendern ──
 function mpRenderWaiting(room){
-  const rp = fixArr(room.players);
-  const np = room.NP||4;
-  const list = document.getElementById('mp-player-slots');
+  const rp=fixArr(room.players), np=room.NP||4;
+  const list=document.getElementById('mp-player-slots');
   if(!list) return;
   list.innerHTML='';
   for(let i=0;i<np;i++){
@@ -3350,23 +3329,28 @@ function mpRenderWaiting(room){
   if(sub) sub.textContent=n+' / '+np+' Spieler verbunden';
 }
 
-// ── Raum-Status live beobachten (Lobby Badge) ──
-let _roomWatcher = null;
+// ── Live Raum-Status Badge ──
 function _startRoomWatcher(){
   if(_roomWatcher) return;
-  _roomWatcher = getDB().ref(ROOM_PATH).on('value', snap=>{
-    const room = snap.val();
+  const db = initFirebase();
+  if(!db){
     const badge = document.getElementById('mp-room-badge');
+    if(badge){ badge.textContent='❌ Firebase nicht geladen — Adblocker prüfen'; badge.style.borderColor='rgba(239,68,68,.4)'; }
+    return;
+  }
+  _roomWatcher = db.ref(ROOM_PATH).on('value', snap=>{
+    const room=snap.val();
+    const badge=document.getElementById('mp-room-badge');
     if(!badge) return;
     if(!room){
       badge.textContent='⚪ Kein Raum aktiv — du erstellst ihn';
       badge.style.borderColor='rgba(139,92,246,.2)';
     } else if(room.status==='waiting'){
-      const rp=fixArr(room.players).filter(p=>p&&p.name&&!p.empty).length;
-      badge.textContent=`🟢 Warteraum — ${rp} / ${room.NP||4} Spieler · Host: ${room.hostName||'?'}`;
+      const n=fixArr(room.players).filter(p=>p&&p.name&&!p.empty).length;
+      badge.textContent=`🟢 Warteraum — ${n} / ${room.NP||4} Spieler · Host: ${room.hostName||'?'}`;
       badge.style.borderColor='rgba(74,222,128,.3)';
     } else if(room.status==='playing'){
-      badge.textContent=`🟡 Spiel läuft — du trittst als Zuschauer bei`;
+      badge.textContent='🟡 Spiel läuft — du trittst als Zuschauer bei';
       badge.style.borderColor='rgba(251,191,36,.3)';
     }
   });
@@ -3376,21 +3360,18 @@ function _startRoomWatcher(){
 window.showMPOverlay = function(){
   const el=document.getElementById('mp-overlay');
   if(el) el.style.display='flex';
-  // Namen aus localStorage vorausfüllen
-  const saved = localStorage.getItem('z10_mp_name')||'';
-  const inp = document.getElementById('mp-name-input');
-  if(inp && saved && !inp.value) inp.value = saved;
-  // Badge direkt laden
-  _onAuthReady(_startRoomWatcher);
+  const saved=localStorage.getItem('z10_mp_name')||'';
+  const inp=document.getElementById('mp-name-input');
+  if(inp && saved && !inp.value) inp.value=saved;
+  // Firebase sofort initialisieren + Badge laden
+  _startRoomWatcher();
 };
 
 function _hideMPOverlay(){
   const el=document.getElementById('mp-overlay');
   if(el) el.style.display='none';
 }
-window.closeMPOverlay = function(){
-  _hideMPOverlay();
-};
+window.closeMPOverlay = function(){ _hideMPOverlay(); };
 
 function _showWaiting(){
   document.getElementById('mp-lobby-screen').style.display='none';
@@ -3398,9 +3379,9 @@ function _showWaiting(){
   document.getElementById('mp-overlay').style.display='flex';
 }
 
-// ── Beim Laden: Raum-Status für Badge ──
+// ── Firebase beim Seitenladen sofort initialisieren ──
 window.addEventListener('load', ()=>{
-  _onAuthReady(()=>{ setTimeout(_startRoomWatcher, 500); });
+  initFirebase();  // kein Warten — DB + Auth sofort starten
 });
 
 })();
