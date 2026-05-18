@@ -492,7 +492,7 @@ color:#53f6ff;
 font-size:20px;
 }
 
-/* Responsive */
+/* Responsive — Tablet */
 @media (max-width: 980px){
 .layout{ grid-template-columns:1fr !important; }
 .logo h1{ font-size:58px !important; }
@@ -501,6 +501,134 @@ font-size:20px;
 .pips{ transform:scale(.72); }
 .buttons{ grid-template-columns:1fr !important; }
 .stats{ grid-template-columns:1fr !important; }
+}
+
+/* ══════════════════════════════════════════════
+   HANDY HOCHFORMAT — 390×844px (iPhone 14/15)
+   Alles ohne scrollen sichtbar
+   ══════════════════════════════════════════════ */
+@media (max-width: 430px) {
+
+/* ── Grundlayout ── */
+body { padding:8px !important; }
+.layout { grid-template-columns:1fr !important; gap:8px !important; }
+.panel  { padding:12px 14px !important; border-radius:20px !important; }
+.panel:last-child { display:none !important; } /* Punkteübersicht weg */
+
+/* ── Logo: eine kompakte Zeile ── */
+.logo h1 { font-size:30px !important; line-height:1 !important; display:inline !important; }
+.logo p  { font-size:13px !important; margin-top:0 !important; display:inline !important; margin-left:10px !important; }
+
+/* ── Spieler: 2×2 Kacheln ── */
+#players {
+  display:grid !important;
+  grid-template-columns:1fr 1fr !important;
+  gap:6px !important;
+}
+.player {
+  padding:8px 10px !important;
+  margin-bottom:0 !important;
+  border-radius:14px !important;
+}
+.player .score { font-size:26px !important; line-height:1.1 !important; }
+.player > div:first-child {
+  font-size:12px !important;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* ── Stats: nebeneinander, kompakt ── */
+.stats { gap:6px !important; margin-bottom:6px !important; }
+.stat  { padding:8px !important; border-radius:14px !important; }
+.stat .v { font-size:34px !important; }
+.stat > div:first-child { font-size:10px !important; letter-spacing:2px !important; }
+
+/* ── Würfelfeld: 3-Spalten-Grid ── */
+.diceWrap {
+  display:grid !important;
+  grid-template-columns:repeat(3,1fr) !important;
+  gap:8px !important;
+  min-height:0 !important;
+  padding:12px !important;
+  margin:6px 0 !important;
+  border-radius:20px !important;
+  align-items:center !important;
+}
+.die {
+  width:100% !important;
+  height:auto !important;
+  aspect-ratio:1/1 !important;
+  border-radius:18px !important;
+}
+.pips { transform:scale(.75) !important; }
+
+/* ── Würfelbecher: zentriert, volle Grid-Breite ── */
+.cup {
+  grid-column:1/-1 !important;
+  width:72px !important;
+  height:118px !important;
+  margin:8px auto !important;
+}
+
+/* ── Buttons: gestapelt ── */
+.buttons {
+  display:flex !important;
+  flex-direction:column !important;
+  gap:7px !important;
+}
+.buttons button {
+  padding:13px !important;
+  font-size:17px !important;
+  border-radius:15px !important;
+  width:100% !important;
+}
+button.newGame, .newGameBtn {
+  padding:12px !important;
+  font-size:15px !important;
+}
+
+/* ── Status ── */
+.status {
+  margin-top:6px !important;
+  padding:8px 12px !important;
+  border-radius:14px !important;
+  font-size:12px !important;
+}
+
+/* ── Log: ausblenden ── */
+.log { display:none !important; }
+
+/* ── Wechsel-Overlay: zentriert, Name in einer Zeile ── */
+#overlayName {
+  font-size: clamp(26px, 9.5vw, 52px) !important;
+  text-align:center !important;
+  padding:0 20px !important;
+  word-break:break-word !important;
+  line-height:1.05 !important;
+  width:100% !important;
+}
+#overlayComment {
+  font-size:19px !important;
+  text-align:center !important;
+  padding:0 24px !important;
+  margin-top:12px !important;
+}
+
+/* ── Quick10 Counter ── */
+#quick10Counter {
+  font-size:12px !important;
+  padding:5px 10px !important;
+}
+
+/* ── MP Overlay: volle Breite, scrollbar ── */
+#mp-overlay { align-items:flex-start !important; overflow-y:auto !important; }
+#mp-overlay > div {
+  width:100% !important;
+  border-radius:0 0 24px 24px !important;
+  padding:20px 16px 24px !important;
+}
+
 }</style>
 
 
@@ -2337,10 +2465,6 @@ ${data.place}
 
 ${index===2 ? `
 <div class="finalButtons">
-<button class="finalBtn" onclick="closeVictory()">
-Schließen
-</button>
-
 <button class="finalBtn" onclick="location.reload()">
 Neues Spiel
 </button>
@@ -2812,11 +2936,7 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 }
 </style>
 
-<div id="devPanel">
-    <button class="devBtn" onclick="devAddRound()">+1 Runde</button>
-    <button class="devBtn" onclick="devAddScore()">+9500 Punkte</button>
-</div>
-
+<!-- devPanel ausgeblendet — Shortcuts Shift+R/S weiter aktiv -->
 <script>
 function devAddRound(){
 
