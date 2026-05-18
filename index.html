@@ -626,6 +626,16 @@ button.newGame, .newGameBtn {
   padding:5px 10px !important;
 }
 
+/* ── Punkte-Button, SPIELER- + WÜRFEL-Label ausblenden ── */
+#scoreOverlay,
+button[onclick*="scoreOverlay"],
+#spielerLabel,
+#wuerfelLabel { display:none !important; }
+
+/* Abstände nach oben ziehen wenn Labels weg ── */
+#players { margin-top:0 !important; }
+.diceWrap { margin-top:4px !important; }
+
 /* ── MP Overlay: volle Breite, scrollbar ── */
 #mp-overlay { align-items:flex-start !important; overflow-y:auto !important; }
 #mp-overlay > div {
@@ -1132,7 +1142,7 @@ opacity:.75;
 <div class="layout">
 
 <div class="panel">
-<div style="letter-spacing:4px;opacity:.6;margin-bottom:16px">SPIELER</div>
+<div id="spielerLabel" style="letter-spacing:4px;opacity:.6;margin-bottom:16px">SPIELER</div>
 <div id="players"></div>
 </div>
 
@@ -1150,7 +1160,7 @@ opacity:.75;
 </div>
 </div>
 
-<div style="letter-spacing:4px;opacity:.6">WÜRFEL</div>
+<div id="wuerfelLabel" style="letter-spacing:4px;opacity:.6">WÜRFEL</div>
 
 <div class="diceWrap" id="diceWrap"></div>
 
