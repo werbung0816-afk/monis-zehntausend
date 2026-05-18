@@ -1690,6 +1690,7 @@ if(players[currentPlayer].score >= 10000){
 if(window.gameMode !== 'quick10' && window._classicEndBy === undefined){
   window._classicEndBy = currentPlayer; // wer hat ausgelöst
   launchConfetti();
+  window._pendingConfettiTs = Date.now();
   const wName = players[currentPlayer].name;
   setStatus('🏆 '+wName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉');
   addLog('🏆 '+wName+' hat 10.000 Punkte — letzte Runde läuft!');
@@ -1713,6 +1714,7 @@ if(window.gameMode !== 'quick10' && window._classicEndBy === undefined){
 
 if(roundPoints>=1000){
 launchConfetti();
+window._pendingConfettiTs = Date.now();
 }
 
 
@@ -1789,12 +1791,19 @@ renderStats();
 // Solo: Overlay sofort lokal. MP: via Firebase-Echo für alle Clients (inkl. dieser)
 if(!MP.on) showOverlay(players[currentPlayer].name, comment);
 
-setStatus(players[currentPlayer].name + " ist am Zug. Jetzt würfeln.");
+// Status: Jubel-Hinweis hat Priorität wenn Classic-Endphase aktiv
+if(window._classicEndBy !== undefined && window.gameMode !== 'quick10'){
+  const triggerName = players[window._classicEndBy]?.name || '?';
+  setStatus('🏆 '+triggerName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉 — '+players[currentPlayer].name+' ist dran');
+} else {
+  setStatus(players[currentPlayer].name + " ist am Zug. Jetzt würfeln.");
+}
 
 // Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
 if(MP.on) MP.push();
-window._pendingOverlay = null;
+window._pendingOverlay    = null;
+window._pendingConfettiTs = null;
 
 if(players[currentPlayer].isAI){
 
@@ -3169,16 +3178,12 @@ const MP = {
       players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI})),
       currentPlayer, dice:[...dice], selected:[...selected],
       roundPoints, mustSecure, hasRolledThisTurn, aiBusy,
-      // Runden-Sync (Schnelle 10)
       currentRound: window.currentRound || 1,
-      // Sound-Signal: Würfelwurf-Zeitstempel
-      rollTs: window._pendingRollTs || null,
-      // Overlay-Sync: Wechselkommentar an alle Clients
-      overlay: window._pendingOverlay || null,
-      // Classic-Ende-Sync
-      classicEndBy  : window._classicEndBy ?? null,
+      rollTs      : window._pendingRollTs     || null,
+      confettiTs  : window._pendingConfettiTs || null,
+      overlay     : window._pendingOverlay    || null,
+      classicEndBy   : window._classicEndBy ?? null,
       classicGameOver: !!window._pendingClassicGameOver,
-      // Schnelle-10-Ende-Sync
       quick10GameOver: window._pendingQuick10GameOver || null,
       ts: Date.now()
     };
@@ -3231,6 +3236,12 @@ function hydrateMPState(s){
   if(s.rollTs && s.rollTs !== window._mpLastRollTs){
     window._mpLastRollTs = s.rollTs;
     if(!window._mpMuted && typeof playDiceSound === 'function') playDiceSound();
+  }
+
+  // Konfetti auf allen Geräten (≥1000 Punkte + Classic-10000-Treffer)
+  if(s.confettiTs && s.confettiTs !== window._mpLastConfettiTs){
+    window._mpLastConfettiTs = s.confettiTs;
+    if(typeof launchConfetti === 'function') launchConfetti();
   }
 
   // Fix 2: Schnelle-10-Siegeransicht auf allen Clients
@@ -3288,8 +3299,15 @@ function hydrateMPState(s){
   const isMine = !isAI && currentPlayer === MP.myIdx;
   _updateTurnButtons(isMine || isAI);
 
-  if(!isMine && !isAI && typeof setStatus==='function'){
-    setStatus('⏳ '+players[currentPlayer]?.name+' ist am Zug…');
+  if(typeof setStatus === 'function'){
+    if(s.classicEndBy !== null && s.classicEndBy !== undefined){
+      // Classic-Endphase: Jubel-Hinweis hat immer Priorität
+      const triggerName = players[s.classicEndBy]?.name || '?';
+      const turnSuffix  = isMine ? ' — Du bist dran!' : ` — ${players[currentPlayer]?.name||'?'} ist dran`;
+      setStatus('🏆 '+triggerName+' hat 10.000 Punkte! Fertig machen zum Jubeln! 🎉'+turnSuffix);
+    } else if(!isMine && !isAI){
+      setStatus('⏳ '+players[currentPlayer]?.name+' ist am Zug…');
+    }
   }
   if(MP.host && isAI && !aiBusy){
     aiBusy = false;
@@ -3482,6 +3500,7 @@ window.mpHostStart = async function(){
   window._classicRankingDone = false;
   window._quick10RankingDone = false;
   window._mpLastRollTs       = 0;
+  window._mpLastConfettiTs   = 0;
 
   const ss=document.getElementById('setupScreen');
   if(ss) ss.style.display='none';
