@@ -1130,50 +1130,76 @@ return shuffled.slice(0,count);
 let players=[];
 
 const successComments=[
-"💎 Clever gesichert!",
-"🎯 Gute Runde!",
-"🙄 Da war mehr drin.",
-"🔥 Stark gespielt!",
-"🚀 Läuft bei dir!",
-"🤩 Mega!!!!",
-"🪩 Das war Disco!"
+// ohne Namen
+"💎 Clever gesichert!","🎯 Gute Runde!","🙄 Da war mehr drin.",
+"✅ Solide.","📦 Eingepackt.","😏 Weiser Entscheid.",
+"🧠 Kopf eingeschaltet.","💼 Profimäßig abgesichert.","🙌 Gut gemacht!",
+"📈 Die Kurve zeigt nach oben.","⚡ Schnell und sauber.","🫡 Respekt.",
+"🎪 Stilvoll gesichert.","🍀 Und tschüss, Risiko.","😌 Gutes Gefühl.",
+"🎖️ Verdient.","🌟 Glänzend.","🏅 Das zählt.",
+// mit Namen (~40%)
+"🔥 [NAME] spielt stark!","🚀 [NAME] läuft heute!",
+"👏 Gut gemacht, [NAME]!","😏 Weiser Entscheid, [NAME].",
+"🫡 Respekt, [NAME].","💎 [NAME] sichert clever.",
+"🧠 [NAME] denkt mit!","🌟 Schön, [NAME]."
 ];
 
 const bustComments=[
-"😵 Kein Glück gehabt!",
-"🙈 Alles verloren!",
-"👀 Ich hab’s kommen sehen!",
-"⚠️ Der Würfel war gnadenlos!"
+// ohne Namen
+"😵 Kein Glück gehabt!","🙈 Alles verloren!","⚠️ Der Würfel war gnadenlos!",
+"💀 Das war nix.","🎲 Der Becher lacht.","🧨 Bumm — weg.",
+"😬 Autsch.","🫠 Zerlaufen.","😮‍💨 Tief durchatmen.",
+"🌊 Weggespült.","🪦 Ruhe in Frieden, Punkte.","🐔 Zu weit gegangen.",
+"🔔 Ding ding — Pleite!","🥲 Na ja.","🌀 In der Spirale verloren.",
+// mit Namen (~40%)
+"😤 [NAME]! So ein Mist!","🙈 [NAME] — alles verloren!",
+"💀 Das war nix, [NAME].","😱 [NAME], nicht schon wieder!",
+"👀 Ich hab's kommen sehen, [NAME]!","🤦 Schade, [NAME], schade.",
+"🎯 Knapp daneben, [NAME] — total daneben."
 ];
-
 
 const lowScoreComments=[
-"😅 Das ging schnell.",
-"🎲 Kurz reingeschaut.",
-"🙄 Da war mehr drin.",
-"🫣 Die Würfel hatten andere Pläne.",
-"💤 Ein kurzer Auftritt.",
-"😬 Heute eher nicht.",
-"🎁 Das war kein Geschenk!",
-"👀 Der Becher war skeptisch.",
-"🎲 Die sind doch kaputt, die Würfel.",
-"💩 Upsi.",
-"🚪 Rein, raus, weiter.",
-"🤏 Das war knapp vorbei."
+// ohne Namen
+"🎲 Kurz reingeschaut.","💤 Ein kurzer Auftritt.",
+"😬 Heute eher nicht.","🎁 Das war kein Geschenk!",
+"👀 Der Becher war skeptisch.","🎲 Die sind doch kaputt, die Würfel.",
+"💩 Upsi.","🚪 Rein, raus, weiter.","🌚 Dunkel da drin.",
+"🙅 Heute nicht.","😶 Sprachlos.","🫥 Quasi unsichtbar.",
+"🔇 Leiser Abgang.","🐌 Langsamer Start.",
+"📉 Kursgraph nach unten.","🤷 Was soll man sagen.",
+"🌫️ Verpufft.","🎪 Kurzer Gastauftritt.",
+// mit Namen (~40%)
+"😅 [NAME], das ging schnell.","🚪 Tschüss, [NAME]!",
+"🎲 [NAME]! Die Würfel hatten andere Pläne.",
+"🤏 Das war knapp vorbei, [NAME].","🙄 Da war mehr drin, [NAME].",
+"🫣 [NAME]! Heute eher nicht.","🏳️ [NAME] kapituliert sofort.",
+"🔮 Das hätte man sehen können, [NAME]."
 ];
 
-
 const specialRollComments=[
-"😎 Coole Socke!",
-"🤩 WOIWOW!!!!"
+// ohne Namen
+"🌈 STRASSE! Traumwurf!","🎆 Feuerwerk!",
+"💥 2000 auf einen Streich!","🎰 Jackpot!",
+"🎊 Unglaublich!","⭐ Legendärer Wurf!",
+// mit Namen (~40%)
+"😎 [NAME], coole Socke!","🤩 [NAME]! WOIWOW!!!!",
+"👑 [NAME] — das ist Königsklasse!",
+"🏆 [NAME] geht in die Geschichte ein."
 ];
 
 const highScoreBustComments=[
-"🤯 Fast ein Mega-Zug!",
-"💥 Zu viel gezockt...",
-"🔥 Mutig gespielt — leider verzockt.",
-"🎲 Hohes Risiko, harter Absturz.",
-"🫣 Risiko ohne Ertrag."
+// ohne Namen
+"💥 Zu viel gezockt...","🎲 Hohes Risiko, harter Absturz.",
+"🎢 Hoch geflogen, tief gefallen.","💸 Alles verspielt.",
+"🃏 Der Joker hat nicht gezogen.","🧨 Bombe — aber die falsche.",
+"🌋 Ausgebrochen und verbrannt.","🦅 Zu hoch geflogen.",
+"😤 Hätte, hätte, Fahrradkette.","🎭 Drama in einem Akt.",
+"⚡ Blendend — bis zum Ende.",
+// mit Namen (~40%)
+"🤯 [NAME], fast ein Mega-Zug!","😭 [NAME], das tut weh.",
+"🔥 [NAME] — mutig gespielt, leider verzockt.",
+"🫣 [NAME]! Risiko ohne Ertrag.",
+"🎢 [NAME] — was für ein Absturz!"
 ];
 
 let currentPlayer=0;
@@ -1200,6 +1226,12 @@ const icons={
 
 function rand(arr){
 return arr[Math.floor(Math.random()*arr.length)];
+}
+
+// Kommentar mit optionalem Spielernamen — [NAME] wird ersetzt
+function randComment(pool, name){
+const c = rand(pool);
+return c.replace(/\[NAME\]/g, name || 'Spieler');
 }
 
 function playDiceSound(){
@@ -1423,7 +1455,7 @@ commentPool = bustComments;
 
 }
 
-addLog(rand(commentPool));
+addLog(randComment(commentPool, players[currentPlayer]?.name));
 
 setStatus("💥 Keine 1 oder 5 mehr vorhanden. Alle Rundenpunkte verloren.");
 
@@ -1458,7 +1490,7 @@ commentPool = bustComments;
 
 }
 
-nextPlayer(rand(commentPool));
+nextPlayer(randComment(commentPool, players[currentPlayer]?.name));
 },3200);
 
 return;
@@ -1538,7 +1570,7 @@ return;
 roundPoints += selectedPoints;
 
 addLog(players[currentPlayer].name + " sichert " + selectedPoints + " Punkte.");
-addLog(rand(successComments));
+addLog(randComment(successComments, players[currentPlayer]?.name));
 
 const remaining=[];
 
@@ -1590,7 +1622,7 @@ const possible=score(dice);
 if(possible===0){
 
 addLog(players[currentPlayer].name + " bustet direkt nach Anschluss.");
-addLog(rand(bustComments));
+addLog(randComment(bustComments, players[currentPlayer]?.name));
 
 setStatus("💥 Keine 1 oder 5 mehr vorhanden. Alle Rundenpunkte verloren.");
 
@@ -1625,7 +1657,7 @@ commentPool = bustComments;
 
 }
 
-nextPlayer(rand(commentPool));
+nextPlayer(randComment(commentPool, players[currentPlayer]?.name));
 },3200);
 
 return;
@@ -1685,9 +1717,9 @@ launchConfetti();
 
 
 let commentPool = [
-"💎 Clever gesichert!",
-"🎯 Gute Runde!",
-"🙄 Da war mehr drin."
+"💎 Clever gesichert!","🎯 Gute Runde!","🙄 Da war mehr drin.",
+"✅ Solide.","📦 Eingepackt.","😏 Weiser Entscheid.","🍀 Sicher ist sicher.",
+"🫡 Respekt, [NAME].","😏 Klug, [NAME].","👏 Gut gespielt, [NAME]."
 ];
 
 // Spezialwurf / Straße
@@ -1702,8 +1734,11 @@ commentPool = specialRollComments;
 else if(roundPoints >= 800){
 
 commentPool = [
-"🤩 Mega!!!!",
-"🪩 Das war Disco!"
+"🤩 Mega!!!!","🪩 Das war Disco!","🏆 Starke Nummer!",
+"🚀 Rakete!","💥 Krasser Zug!","🎆 Feuerwerk!","👑 Königlich.","🤯 Unglaublich!",
+"🤩 [NAME], das war DISCO!","🪩 [NAME] dreht auf!",
+"🏆 [NAME] — Klasse!","🚀 [NAME] ist nicht zu stoppen!",
+"👑 Respekt, [NAME]. Richtig stark!"
 ];
 
 }
@@ -1711,13 +1746,16 @@ commentPool = [
 else if(roundPoints >= 400){
 
 commentPool = [
-"🔥 Stark gespielt!",
-"🚀 Läuft bei dir!"
+"🔥 Stark gespielt!","🚀 Läuft bei dir!","🎯 Treffsicher.",
+"💪 Solide Leistung.","📈 Guter Zug.","😎 Klasse.","🌟 Nice.","👏 Sehr schön.",
+"🔥 [NAME] spielt heute stark!","🚀 [NAME] läuft!",
+"💪 Solide, [NAME].","😎 Schön, [NAME]."
 ];
 
 }
 
-nextPlayer(rand(commentPool));
+
+nextPlayer(randComment(commentPool, players[currentPlayer]?.name));
 }
 
 function nextPlayer(comment){
@@ -2134,38 +2172,75 @@ const sorted = [...players]
 const medals = [
 {
 place:"👑 1. PLATZ",
-comment:"🥇 DER WÜRFELBECHER IST MIT DIR!",
+comments:[
+"🥇 DER WÜRFELBECHER IST MIT DIR!",
+"🏆 UNSCHLAGBAR!",
+"👑 DAS WAR EINE SHOW!",
+"🎆 CHAMPION DES ABENDS!",
+"🌟 ABSOLUT LEGENDÄR!",
+"🎰 DER BECHER GEHORCHT DIR!",
+"🚀 DAVONGEFLOGEN!"
+],
 className:"gold",
 confetti:520
 },
 {
 place:"🥈 2. PLATZ",
-comment:"🔥 GANZ KNAPP DRAN VORBEI!",
+comments:[
+"🔥 GANZ KNAPP DRAN VORBEI!",
+"🥈 SO NAH — UND DOCH SO WEIT!",
+"😤 DAS NÄCHSTE MAL BIST DU DER BOSS!",
+"💪 STARK GESPIELT — RESPEKT!",
+"🎯 EIN HAUCH ZU WENIG!",
+"⚡ SILBER IST AUCH GOLD WERT!",
+"🌪️ FAST PERFEKT!"
+],
 className:"silver",
 confetti:260
 },
 {
 place:"🥉 3. PLATZ",
-comment:"😎 STARK GEKÄMPFT!",
+comments:[
+"😎 STARK GEKÄMPFT!",
+"🥉 PODIUM ERREICHT — NICHT SCHLECHT!",
+"🎲 DAS BRONZE VERDIENT!",
+"🔥 DRITTER — ABER MIT STIL!",
+"💥 IMMER NOCH AUF DEM TREPPCHEN!",
+"🙌 SOLIDE BIS ZULETZT!",
+"🎭 DRAMA AUF DEM TREPPCHEN!"
+],
 className:"bronze",
 confetti:140
 },
 {
 place:"🏅 4. PLATZ",
-comment:"🎲 NÄCHSTE RUNDE GEHÖRT DIR!",
+comments:[
+"🎲 NÄCHSTE RUNDE GEHÖRT DIR!",
+"😅 KNAPP AM PODIUM VORBEI!",
+"🤞 BEIM NÄCHSTEN MAL KLAPPT'S!",
+"💤 HEUTE WAR NICHT DEIN TAG!",
+"🌱 ÜBUNG MACHT DEN MEISTER!",
+"🎯 DER BECHER HAT NOCH PLÄNE MIT DIR!",
+"🔄 REVANCHE GEFÄLLIG?"
+],
 className:"bronze",
 confetti:80
 }
 ];
 
-podiumSequence = sorted.reverse().map((p,i)=>({
-place: medals[sorted.length-1-i]?.place || `#${sorted.length-i}`,
-comment: medals[sorted.length-1-i]?.comment || "🎲 STARK GESPIELT!",
-name: p.name,
-score: String(p.score),
-className: medals[sorted.length-1-i]?.className || "bronze",
-confetti: medals[sorted.length-1-i]?.confetti || 80
-}));
+podiumSequence = sorted.reverse().map((p,i)=>{
+const medal = medals[sorted.length-1-i];
+return {
+place  : medal?.place    || `#${sorted.length-i}`,
+comment: medal?.comments
+  ? medal.comments[Math.floor(Math.random()*medal.comments.length)]
+  : "🎲 STARK GESPIELT!",
+name     : p.name,
+score    : String(p.score),
+className: medal?.className || "bronze",
+confetti : medal?.confetti  || 80
+};
+});
 
 }
 
@@ -2905,8 +2980,8 @@ document.getElementById('victoryTestBtn').click();
 
     <!-- Header -->
     <div style="margin-bottom:24px">
-      <div style="font-size:28px;font-weight:900;background:linear-gradient(90deg,#ff4fd8,#53f6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🌐 Multiplayer</div>
-      <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:2px">Leni &amp; Finn Edition</div>
+      <div style="font-size:38px;font-weight:900;line-height:.88;background:linear-gradient(90deg,#ff4fd8,#53f6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Moni's<br>Zehntausend</div>
+      <div style="font-size:13px;color:#ff9ef0;margin-top:8px">💜 Leni &amp; Finn Edition</div>
     </div>
 
     <!-- LOBBY SCREEN -->
