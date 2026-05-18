@@ -2857,11 +2857,7 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 }
 </style>
 
-<div id="devPanel">
-    <button class="devBtn" onclick="devAddRound()">+1 Runde</button>
-    <button class="devBtn" onclick="devAddScore()">+9500 Punkte</button>
-</div>
-
+<!-- DevPanel ausgeblendet — Shift+R / Shift+S Shortcuts aktiv -->
 <script>
 function devAddRound(){
 
@@ -3320,7 +3316,12 @@ function hydrateMPState(s){
     return;
   }
 
-  if(Array.isArray(s.players)) players = s.players.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
+  // fixArr() handles both array and Firebase object format {"0":{...},"1":{...}}
+  const rawP = s.players;
+  if(rawP){
+    const pArr = fixArr(rawP).filter(Boolean);
+    if(pArr.length) players = pArr.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI,id:p.id||null}));
+  }
   if(typeof s.currentPlayer==='number') currentPlayer = s.currentPlayer;
   dice     = Array.isArray(s.dice)     ? [...s.dice]     : [];
   selected = Array.isArray(s.selected) ? [...s.selected] : [];
