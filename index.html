@@ -625,18 +625,7 @@ display:flex;
 }
 
 #victoryTestBtn{
-position:fixed;
-right:24px;
-bottom:24px;
-z-index:1000000;
-padding:16px 24px;
-border:none;
-border-radius:18px;
-font-size:20px;
-font-weight:800;
-cursor:pointer;
-color:white;
-background:linear-gradient(90deg,#8b5cf6,#ec4899);
+display:none !important;
 }
 
 .victoryStage{
@@ -2775,7 +2764,7 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 
 <div id="devPanel">
     <button class="devBtn" onclick="devAddRound()">+1 Runde</button>
-    <button class="devBtn" onclick="devShowVictory()">🏆 Siegeransicht</button>
+    <button class="devBtn" onclick="devAddScore()">+9500 Punkte</button>
 </div>
 
 <script>
@@ -2785,7 +2774,6 @@ function devAddRound(){
         alert('Bitte zuerst Schnelle 10 starten');
         return;
     }
-
     window.currentRound++;
 
     const counter =
@@ -2846,7 +2834,19 @@ document.addEventListener('keydown',(e)=>{
         devAddRound();
     }
 
+    if(e.shiftKey && e.key.toLowerCase() === 's'){
+        devAddScore();
+    }
+
 });
+
+// +9500 Punkte: aktuellen Spieler auf Gewinnschwelle bringen (Classic-Endtest)
+function devAddScore(){
+    if(!players || !players[currentPlayer]) return;
+    players[currentPlayer].score += 9500;
+    if(MP.on) MP.push();
+    renderPlayers();
+}
 </script>
 
 
@@ -2941,7 +2941,7 @@ document.getElementById('victoryTestBtn').click();
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px">
       <div>
         <div style="font-size:28px;font-weight:900;background:linear-gradient(90deg,#ff4fd8,#53f6ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🌐 Multiplayer</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:2px">Moni's Zehntausend — Düsseldorf Raum</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:2px">Leni &amp; Finn Edition</div>
       </div>
       <div style="display:flex;gap:10px;align-items:center">
         <!-- Jitsi Link -->
@@ -2983,13 +2983,13 @@ document.getElementById('victoryTestBtn').click();
       <!-- Spielmodus-Auswahl (nur Host relevant, wird via Firebase übertragen) -->
       <div style="display:flex;gap:10px;margin-bottom:4px">
         <button id="mp-mode-classic" onclick="mpSetMode('full',this)" style="
-          flex:1;padding:12px 10px;border:2px solid rgba(139,92,246,.6);border-radius:14px;
-          background:rgba(139,92,246,.2);color:#fff;font-family:'Outfit',sans-serif;
+          flex:1;padding:12px 10px;border:2px solid rgba(255,255,255,.12);border-radius:14px;
+          background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-family:'Outfit',sans-serif;
           font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;
         ">🏆 Classic</button>
         <button id="mp-mode-quick" onclick="mpSetMode('quick10',this)" style="
-          flex:1;padding:12px 10px;border:2px solid rgba(255,255,255,.12);border-radius:14px;
-          background:rgba(255,255,255,.04);color:rgba(255,255,255,.5);font-family:'Outfit',sans-serif;
+          flex:1;padding:12px 10px;border:2px solid rgba(251,191,36,.8);border-radius:14px;
+          background:rgba(251,191,36,.1);color:#fbbf24;font-family:'Outfit',sans-serif;
           font-size:15px;font-weight:700;cursor:pointer;transition:all .2s;
         ">⚡ Schnelle 10</button>
       </div>
@@ -3032,7 +3032,7 @@ document.getElementById('victoryTestBtn').click();
         text-align:center;padding:10px;border-radius:12px;
         background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);
         font-size:14px;color:rgba(255,255,255,.6);
-      ">Modus: <b id="mp-mode-label" style="color:#fff">Classic</b></div>
+      ">Modus: <b id="mp-mode-label" style="color:#fbbf24">Schnelle 10</b></div>
 
       <button id="mp-start-btn" onclick="mpHostStart()" style="
         display:none;
@@ -3095,7 +3095,7 @@ const FB_CFG = {
 
 const ROOM_PATH = 'rooms/z10_main';
 let _db = null, _lastTs = 0, _roomWatcher = null;
-let _mpMode = 'full'; // vom Host gewählter Modus
+let _mpMode = 'quick10'; // Standard: Schnelle 10
 
 // ── Modus-Auswahl Toggle ──
 window.mpSetMode = function(mode, btn){
