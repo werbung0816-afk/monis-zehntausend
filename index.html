@@ -606,6 +606,212 @@ touch-action:manipulation;
 
 </style>
 
+<!-- ══════════════════════════════════════════
+     HANDY HOCHFORMAT — Portrait Optimierung
+     Greift nur bei Smartphones im Hochformat
+     ══════════════════════════════════════════ -->
+<style>
+@media (max-width: 480px) and (orientation: portrait){
+
+/* ── Grundlayout ── */
+body{
+  padding:10px !important;
+}
+.layout{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:10px !important;
+}
+
+/* ── Logo: Mini-Header oben ── */
+.logo{
+  display:flex !important;
+  align-items:baseline !important;
+  gap:10px !important;
+  padding:6px 0 !important;
+}
+.logo h1{
+  font-size:36px !important;
+  line-height:1 !important;
+}
+.logo p{
+  font-size:14px !important;
+  margin-top:0 !important;
+}
+
+/* ── Spieler: kompakte Kacheln nebeneinander ── */
+#players{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:7px !important;
+}
+.player{
+  flex:1 1 calc(50% - 4px) !important;
+  min-width:0 !important;
+  padding:10px 12px !important;
+  border-radius:14px !important;
+  margin-bottom:0 !important;
+}
+.player .score{
+  font-size:28px !important;
+  line-height:1 !important;
+}
+.player > div:first-child{
+  font-size:13px !important;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* ── Stats: nebeneinander, kompakt ── */
+.stats{
+  grid-template-columns:1fr 1fr !important;
+  gap:8px !important;
+  margin-bottom:8px !important;
+}
+.stat{
+  padding:12px !important;
+  border-radius:16px !important;
+}
+.stat .v{
+  font-size:36px !important;
+}
+.stat > div:first-child{
+  font-size:11px !important;
+}
+
+/* ── Würfelfeld: CSS-Grid 3 Spalten ── */
+.diceWrap{
+  display:grid !important;
+  grid-template-columns:repeat(3,1fr) !important;
+  gap:10px !important;
+  padding:14px !important;
+  min-height:0 !important;
+  margin:10px 0 !important;
+}
+.die{
+  width:100% !important;
+  height:auto !important;
+  aspect-ratio:1 !important;
+  border-radius:18px !important;
+  font-size:0 !important; /* Emoji-Größe via pips */
+}
+.pips{
+  transform:scale(0.58) !important;
+}
+
+/* ── Würfelbecher ── */
+.cup{
+  width:80px !important;
+  height:130px !important;
+  grid-column:1/-1 !important;
+  margin:auto !important;
+}
+
+/* ── Aktions-Buttons: volle Breite gestapelt ── */
+.buttons{
+  display:flex !important;
+  flex-direction:column !important;
+  gap:9px !important;
+}
+.buttons button{
+  padding:16px !important;
+  font-size:18px !important;
+  border-radius:16px !important;
+  width:100% !important;
+}
+
+/* ── Neues Spiel Button ── */
+.newGameBtn, #newGameBtn{
+  padding:14px !important;
+  font-size:16px !important;
+  border-radius:14px !important;
+}
+
+/* ── Status ── */
+.status{
+  padding:11px 14px !important;
+  margin-top:8px !important;
+  font-size:13px !important;
+  border-radius:14px !important;
+}
+
+/* ── Log: kürzer ── */
+.log{
+  max-height:120px !important;
+  margin-top:8px !important;
+}
+.entry{
+  padding:8px 10px !important;
+  font-size:12px !important;
+  border-radius:10px !important;
+}
+
+/* ── Spielerwechsel-Overlay ── */
+#overlayName{
+  font-size:52px !important;
+}
+#overlayComment{
+  font-size:18px !important;
+  margin-top:12px !important;
+}
+
+/* ── Sieger-Overlay ── */
+.victoryStage{
+  padding:24px 16px !important;
+  gap:20px !important;
+}
+.bigComment{
+  font-size:24px !important;
+  max-width:100% !important;
+}
+.bigPlace{
+  font-size:52px !important;
+}
+
+/* ── Multiplayer-Overlay ── */
+#mp-overlay{
+  align-items:flex-start !important;
+  overflow-y:auto !important;
+}
+#mp-overlay > div{
+  width:100% !important;
+  max-width:100% !important;
+  border-radius:0 0 24px 24px !important;
+  padding:20px 16px 24px !important;
+  min-height:auto !important;
+}
+#mp-name-input{
+  font-size:16px !important;
+}
+
+/* ── DevPanel ── */
+#devPanel{
+  bottom:8px !important;
+  right:8px !important;
+  gap:6px !important;
+}
+.devBtn{
+  padding:7px 11px !important;
+  font-size:11px !important;
+  border-radius:9px !important;
+}
+
+/* ── Quick10 Counter ── */
+#quick10Counter{
+  font-size:12px !important;
+  padding:5px 10px !important;
+}
+
+/* ── Log-Panel im rechten Panel verstecken auf kleinen Phones ── */
+.panel:last-child{
+  display:none !important;
+}
+
+}
+
+</style>
+
 
 <style>
 #victoryOverlay{
