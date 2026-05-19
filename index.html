@@ -3444,7 +3444,8 @@ window.mpConnect = async function(){
       if(bestKey !== null){
         await _asReplacement(name, bestKey, MP._ref);
       } else {
-        await _asSpectator();
+        // Kein KI-Slot frei — als neuer Spieler mit Einsteigerpunkten beitreten
+        await _asNewPlayer(name, MP._ref);
       }
     }
     _startRoomWatcher();
@@ -3488,7 +3489,35 @@ async function _asSpectator(){
   if(typeof setStatus==='function') setStatus('👁 Zuschauermodus');
 }
 
-// Einstieg während laufendem Spiel: KI-Spieler übernehmen
+// ── Neuer Spieler tritt laufendem Spiel bei (kein KI-Slot frei) ──
+async function _asNewPlayer(name, ref){
+  const snap = await ref.once('value');
+  const room  = snap.val();
+  if(!room || !room.state) return _asSpectator(); // Fallback
+
+  const currentPlayers = fixArr(room.state.players).filter(Boolean);
+  const newIdx = currentPlayers.length; // ans Ende anhängen
+
+  // Startpunkte: schlechtester Spieler - 100 (min. 0)
+  const scores    = currentPlayers.map(p => p.score || 0);
+  const worstScore= scores.length ? Math.min(...scores) : 0;
+  const startScore= Math.max(0, worstScore - 100);
+
+  const newPlayer = { name, score: startScore, isAI: false, id: null };
+
+  // In Firebase eintragen
+  await ref.child('state/players/' + newIdx).set(newPlayer);
+  await ref.child('players/' + newIdx).set({ name, isAI: false });
+  await ref.child('state/ts').set(Date.now()); // alle Clients updaten
+
+  MP.on = true; MP.host = false; MP.myIdx = newIdx;
+  _hideMPOverlay();
+  MP.listen();
+  if(typeof setStatus === 'function')
+    setStatus('✅ '+name+' ist dabei — Startpunkte: '+startScore);
+}
+
+// ── Einstieg während laufendem Spiel: KI-Spieler übernehmen ──
 async function _asReplacement(name, playerKey, ref){
   const idx = parseInt(playerKey);
 
@@ -3630,7 +3659,7 @@ function _startRoomWatcher(){
       badge.style.borderColor='rgba(74,222,128,.3)';
     } else if(room.status==='playing'){
       const age = Math.round((Date.now()-(room.ts||0))/60000);
-      badge.innerHTML=`🟡 Spiel läuft — du trittst als Zuschauer bei &nbsp;
+      badge.innerHTML=`🟡 Spiel läuft — du steigst als neuer Spieler ein &nbsp;
         <button onclick="mpResetRoom()" style="
           font-size:11px;padding:3px 9px;border:1px solid rgba(239,68,68,.5);border-radius:8px;
           background:rgba(239,68,68,.12);color:rgba(239,68,68,.8);cursor:pointer;font-family:inherit;
