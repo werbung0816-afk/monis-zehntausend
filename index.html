@@ -3493,29 +3493,30 @@ async function _asSpectator(){
 
 // ── Neuer Spieler tritt laufendem Spiel bei (kein KI-Slot frei) ──
 async function _asNewPlayer(name, ref){
-  const snap = await ref.once('value');
-  const room  = snap.val();
-  if(!room || !room.state) return _asSpectator(); // Fallback
+  const snap = await ref.child('state').once('value');
+  const st   = snap.val();
+  if(!st) return _asSpectator();
 
-  const currentPlayers = fixArr(room.state.players).filter(Boolean);
-  const newIdx = currentPlayers.length; // ans Ende anhängen
+  const currentPlayers = fixArr(st.players).filter(Boolean);
+  const newIdx         = currentPlayers.length;
 
   // Startpunkte: schlechtester Spieler - 100 (min. 0)
-  const scores    = currentPlayers.map(p => p.score || 0);
-  const worstScore= scores.length ? Math.min(...scores) : 0;
-  const startScore= Math.max(0, worstScore - 100);
+  const scores     = currentPlayers.map(p => p.score || 0);
+  const worstScore = scores.length ? Math.min(...scores) : 0;
+  const startScore = Math.max(0, worstScore - 100);
 
-  const newPlayer = { name, score: startScore, isAI: false, id: null };
+  // Atomares Update: players-Objekt erhalten, nur neuen Slot hinzufügen
+  // dice/selected/roundPoints des laufenden Zuges bleiben unberührt
+  const updatedPlayers = Object.assign({}, st.players||{});
+  updatedPlayers[newIdx] = {name, score:startScore, isAI:false, id:null};
 
-  // In Firebase eintragen
-  await ref.child('state/players/' + newIdx).set(newPlayer);
-  await ref.child('players/' + newIdx).set({ name, isAI: false });
-  await ref.child('state/ts').set(Date.now()); // alle Clients updaten
+  await ref.child('state').update({ players: updatedPlayers, ts: Date.now() });
+  await ref.child('players/'+newIdx).set({name, isAI:false});
 
-  MP.on = true; MP.host = false; MP.myIdx = newIdx;
+  MP.on=true; MP.host=false; MP.myIdx=newIdx;
   _hideMPOverlay();
   MP.listen();
-  if(typeof setStatus === 'function')
+  if(typeof setStatus==='function')
     setStatus('✅ '+name+' ist dabei — Startpunkte: '+startScore);
 }
 
@@ -3523,14 +3524,14 @@ async function _asNewPlayer(name, ref){
 async function _asReplacement(name, playerKey, ref){
   const idx = parseInt(playerKey);
 
-  // Spieler patchen
-  await ref.child('state/players/'+playerKey+'/name').set(name);
-  await ref.child('state/players/'+playerKey+'/isAI').set(false);
+  // Atomares Update: nur isAI+name patchen, ts erhöhen
+  // dice/selected/roundPoints des laufenden Host-Zuges bleiben erhalten
+  const patch = {};
+  patch['players/'+playerKey+'/name']  = name;
+  patch['players/'+playerKey+'/isAI']  = false;
+  patch['ts'] = Date.now();
+  await ref.child('state').update(patch);
   await ref.child('players/'+playerKey).update({name, isAI:false});
-
-  // state.ts aktualisieren → erzwingt hydrateMPState auf ALLEN Clients
-  // ohne ts-Update ignorieren alle Listener das Update (s.ts <= _lastTs)
-  await ref.child('state/ts').set(Date.now());
 
   MP.on=true; MP.host=false; MP.myIdx=idx;
   _hideMPOverlay();
@@ -3707,7 +3708,18 @@ function _hideMPOverlay(){
   if(el) el.style.display='none';
   const pb=document.getElementById('punkteBtn');
   if(pb) pb.style.display='block';
+  // Re-Sync Button nur dem Host zeigen
+  const rb=document.getElementById('resyncBtn');
+  if(rb) rb.style.display = MP.host ? 'block' : 'none';
 }
+
+// ── Re-Sync: Host pusht seinen aktuellen State an alle Clients ──
+window.mpResync = function(){
+  if(!MP.on || !MP.host) return;
+  MP.push();
+  const rb=document.getElementById('resyncBtn');
+  if(rb){ rb.textContent='✅ Synced'; setTimeout(()=>{ rb.textContent='🔄 Re-Sync'; },1500); }
+};
 window.closeMPOverlay = function(){
   // Overlay bleibt immer erreichbar — nur ausblenden wenn Spiel läuft
   // (wird automatisch durch hydrateMPState / mpHostStart versteckt)
@@ -3732,6 +3744,16 @@ window.addEventListener('load', ()=>{
 
 
 <!-- ── Punkteübersicht: Button + Overlay ── -->
+<!-- Re-Sync Button — nur für Host sichtbar -->
+<button id="resyncBtn" onclick="mpResync()" style="
+  display:none;
+  position:fixed;bottom:20px;left:20px;z-index:99999;
+  padding:10px 16px;border:none;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.7);font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(10px);
+" title="Spielstand synchronisieren">🔄 Re-Sync</button>
+
 <button id="punkteBtn" onclick="document.getElementById('scoreOverlay').style.display='flex'"
   style="
   display:none;
