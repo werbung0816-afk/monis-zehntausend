@@ -2585,10 +2585,12 @@ setTimeout(()=>{
 
         const result = originalNextPlayer(comment);
 
-        // Neue Runde sobald wieder Spieler 0 dran ist
+        // Neue Runde sobald der LETZTE Spieler dran war und wieder Spieler 0 dran ist
+        // players.length dynamisch prüfen — berücksichtigt nachträglich beigetretene Spieler
+        const lastPlayerIdx = players.length - 1;
         if(
             window.gameMode === 'quick10' &&
-            previousPlayer === players.length - 1 &&
+            previousPlayer === lastPlayerIdx &&
             currentPlayer === 0
         ){
 
@@ -3301,7 +3303,7 @@ function hydrateMPState(s){
   }
 
   // Runden-Sync (Schnelle 10)
-  if(typeof s.currentRound === 'number' && s.currentRound !== window.currentRound){
+  if(typeof s.currentRound === 'number'){
     window.currentRound = s.currentRound;
     if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
   }
