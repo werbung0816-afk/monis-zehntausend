@@ -546,8 +546,6 @@ body { padding:8px !important; }
 #mp-overlay > div { width:100% !important; border-radius:0 0 24px 24px !important; padding:20px 16px 24px !important; }
 #spielerLabel, #wuerfelLabel { display:none !important; }
 #scoreOverlay, button[onclick*="scoreOverlay"] { display:none !important; }
-#players { margin-top:0 !important; }
-.diceWrap { margin-top:4px !important; }
 }
 </style>
 
@@ -1351,7 +1349,7 @@ dice.every((v,i,a)=>v===a[0]);
 renderDice();
 renderStats();
 
-// Würfelauswahl für alle Clients sichtbar machen
+// Würfelauswahl für alle Clients sichtbar
 if(MP.on) MP.push();
 
 isRolling = false;
@@ -1853,8 +1851,7 @@ if(window._classicEndBy !== undefined && window.gameMode !== 'quick10'){
 // Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
 
-// Schnelle-10: Rundenerhöhung VOR dem Push — damit currentRound korrekt im State landet
-// _prevPlayerForRound wird vom wrapper gesetzt bevor originalNextPlayer aufgerufen wird
+// Schnelle-10: Rundenerhöhung VOR dem Push — currentRound korrekt im State
 if(window.gameMode === 'quick10' && typeof window._prevPlayerForRound === 'number'){
   const lastIdx = players.length - 1;
   if(window._prevPlayerForRound === lastIdx && currentPlayer === 0){
@@ -2092,7 +2089,7 @@ return;
 actionLocked = false;
 mustSecure = false;
 
-// Auswahl an alle Clients pushen — Gäste sehen Würfelauswahl vor dem Banking
+// Auswahl an alle Clients pushen — Gäste sehen Würfelauswahl
 if(MP.on) MP.push();
 
 // Auswahl sichtbar lassen bevor gesichert wird
@@ -2106,11 +2103,8 @@ setTimeout(()=>{
 if(roundPoints < 250){
 
 aiBusy = false;
-
-// Flag setzen damit hydrateMPState nicht parallel ein zweites aiTurn triggert
 window._aiScheduledByHost = true;
 setTimeout(()=>{
-
 window._aiScheduledByHost = false;
 if(players[currentPlayer] && players[currentPlayer].isAI){
 aiTurn();
@@ -2598,15 +2592,12 @@ setTimeout(()=>{
 
         const previousPlayer = currentPlayer;
 
-        // _prevPlayerForRound für nextPlayer() bereitstellen (wird dort vor MP.push genutzt)
+        // _prevPlayerForRound für nextPlayer() bereitstellen
         window._prevPlayerForRound = previousPlayer;
 
         const result = originalNextPlayer(comment);
-        // currentRound++ + MP.push() passieren jetzt INNERHALB originalNextPlayer
-        // (nur falls _prevPlayerForRound auslöst) — kein Doppel-Push mehr nötig
 
-        // Neue Runde sobald der LETZTE Spieler dran war und wieder Spieler 0 dran ist
-        // players.length dynamisch prüfen — berücksichtigt nachträglich beigetretene Spieler
+        // Neue Runde — dynamisch, berücksichtigt nachträglich beigetretene Spieler
         const lastPlayerIdx = players.length - 1;
         if(
             window.gameMode === 'quick10' &&
@@ -2614,7 +2605,8 @@ setTimeout(()=>{
             currentPlayer === 0
         ){
 
-            // currentRound wurde bereits in nextPlayer() erhöht und gepusht
+            window.currentRound++;
+
             updateQuick10Counter();
 
             if(window.currentRound > 10){
@@ -2884,7 +2876,8 @@ box-shadow:0 0 20px rgba(255,0,180,.2);
 }
 </style>
 
-<!-- DevPanel ausgeblendet — Shift+R / Shift+S Shortcuts aktiv -->
+<!-- DevPanel ausgeblendet — Shift+R/S aktiv -->
+
 <script>
 function devAddRound(){
 
@@ -3236,7 +3229,7 @@ function roomRef(){
 function fixArr(v){ if(!v)return[];if(Array.isArray(v))return v;return Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]); }
 
 // ── MP Singleton ──
-let _lastPushTs = 0; // garantiert streng steigenden ts über alle Pushes
+let _lastPushTs = 0;
 
 const MP = {
   on:false, host:false, myIdx:0, myName:'',
@@ -3244,7 +3237,6 @@ const MP = {
 
   async push(){
     if(!this.on||!this._ref) return;
-    // Monoton steigender ts — verhindert dass gleichzeitige Pushes denselben Wert haben
     const now = Date.now();
     _lastPushTs = now > _lastPushTs ? now : _lastPushTs + 1;
     const state = {
@@ -3298,13 +3290,11 @@ function hydrateMPState(s){
   const ss = document.getElementById('setupScreen');
   if(ss) ss.style.display = 'none';
 
-  // Spielmodus aus Firebase-State übernehmen
+  // Spielmodus aus Firebase-State übernehmen (Gast bekommt Modus vom Host)
   if(s.mode){
     window.gameMode    = s.mode;
     window.maxRounds   = s.mode==='quick10' ? 10 : 999999;
   }
-
-  // Runden-Sync — unkonditionell, gameMode ist jetzt korrekt gesetzt
   if(typeof s.currentRound === 'number') window.currentRound = s.currentRound;
   if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
 
@@ -3329,6 +3319,12 @@ function hydrateMPState(s){
     return;
   }
 
+  // Runden-Sync (Schnelle 10)
+  if(typeof s.currentRound === 'number' && s.currentRound !== window.currentRound){
+    window.currentRound = s.currentRound;
+    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
+  }
+
   // Classic-Ende-Flag synchronisieren
   if(s.classicEndBy !== null && s.classicEndBy !== undefined){
     if(window._classicEndBy === undefined){
@@ -3345,7 +3341,6 @@ function hydrateMPState(s){
     return;
   }
 
-  // fixArr() handles both array and Firebase object format {"0":{...},"1":{...}}
   const rawP = s.players;
   if(rawP){
     const pArr = fixArr(rawP).filter(Boolean);
@@ -3467,7 +3462,6 @@ window.mpConnect = async function(){
       if(bestKey !== null){
         await _asReplacement(name, bestKey, MP._ref);
       } else {
-        // Kein KI-Slot frei — als neuer Spieler mit Einsteigerpunkten beitreten
         await _asNewPlayer(name, MP._ref);
       }
     }
@@ -3512,68 +3506,63 @@ async function _asSpectator(){
   if(typeof setStatus==='function') setStatus('👁 Zuschauermodus');
 }
 
-// ── Neuer Spieler tritt laufendem Spiel bei (kein KI-Slot frei) ──
+// ── Neuer Spieler ohne KI-Slot ──
 async function _asNewPlayer(name, ref){
   const snap = await ref.child('state').once('value');
   const st   = snap.val();
-  if(!st) return _asSpectator();
+  if(!st) return;
 
   const currentPlayers = fixArr(st.players).filter(Boolean);
-  const newIdx         = currentPlayers.length;
+  const newIdx = currentPlayers.length;
+  const scores = currentPlayers.map(p=>p.score||0);
+  const startScore = Math.max(0, (scores.length ? Math.min(...scores) : 0) - 100);
 
-  // Startpunkte: schlechtester Spieler - 100 (min. 0)
-  const scores     = currentPlayers.map(p => p.score || 0);
-  const worstScore = scores.length ? Math.min(...scores) : 0;
-  const startScore = Math.max(0, worstScore - 100);
-
-  // Atomares Update: players-Objekt erhalten, nur neuen Slot hinzufügen
-  // dice/selected/roundPoints des laufenden Zuges bleiben unberührt
   const updatedPlayers = Object.assign({}, st.players||{});
   updatedPlayers[newIdx] = {name, score:startScore, isAI:false, id:null};
-
-  await ref.child('state').update({ players: updatedPlayers, ts: Date.now() });
+  _lastPushTs = Date.now() > _lastPushTs ? Date.now() : _lastPushTs + 1;
+  await ref.child('state').update({ players:updatedPlayers, ts:_lastPushTs });
   await ref.child('players/'+newIdx).set({name, isAI:false});
 
   MP.on=true; MP.host=false; MP.myIdx=newIdx;
-  _applyModeFromState(st);   // Counter sofort zeigen, nicht auf Echo warten
+  if(st.mode==='quick10'){
+    window.gameMode='quick10'; window.maxRounds=10;
+    window.currentRound=st.currentRound||1;
+    try{
+      const el=document.getElementById('quick10Counter');
+      if(el){ el.style.display='block'; el.textContent=window.currentRound+' / 10'; }
+    }catch(e){}
+  }
   _hideMPOverlay();
   MP.listen();
   if(typeof setStatus==='function')
     setStatus('✅ '+name+' ist dabei — Startpunkte: '+startScore);
 }
 
-
-// Setzt gameMode + counter sofort nach Join — kein Warten auf Firebase-Echo
-function _applyModeFromState(st){
-  if(!st) return;
-  if(st.mode){
-    window.gameMode  = st.mode;
-    window.maxRounds = st.mode==='quick10' ? 10 : 999999;
-  }
-  if(typeof st.currentRound === 'number'){
-    window.currentRound = st.currentRound;
-    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
-  }
-}
-
-// ── Einstieg während laufendem Spiel: KI-Spieler übernehmen ──
+// Einstieg während laufendem Spiel: KI-Spieler übernehmen
 async function _asReplacement(name, playerKey, ref){
   const idx = parseInt(playerKey);
-
-  // State lesen um Mode + Runde sofort setzen zu können
   const stSnap = await ref.child('state').once('value');
   const st = stSnap.val();
 
-  // Atomares Update: nur isAI+name patchen, ts erhöhen
+  // Atomares Update: nur name+isAI patchen, ts erhöhen
   const patch = {};
   patch['players/'+playerKey+'/name']  = name;
   patch['players/'+playerKey+'/isAI']  = false;
-  patch['ts'] = Date.now();
+  _lastPushTs = Date.now() > _lastPushTs ? Date.now() : _lastPushTs + 1;
+  patch['ts'] = _lastPushTs;
   await ref.child('state').update(patch);
   await ref.child('players/'+playerKey).update({name, isAI:false});
 
   MP.on=true; MP.host=false; MP.myIdx=idx;
-  _applyModeFromState(st);   // Counter sofort zeigen, nicht auf Echo warten
+  // Counter direkt setzen — kein Warten auf Firebase-Echo
+  if(st && st.mode==='quick10'){
+    window.gameMode='quick10'; window.maxRounds=10;
+    window.currentRound=st.currentRound||1;
+    try{
+      const el=document.getElementById('quick10Counter');
+      if(el){ el.style.display='block'; el.textContent=window.currentRound+' / 10'; }
+    }catch(e){}
+  }
   _hideMPOverlay();
   MP.listen();
   if(typeof setStatus==='function')
@@ -3748,43 +3737,25 @@ function _hideMPOverlay(){
   if(el) el.style.display='none';
   const pb=document.getElementById('punkteBtn');
   if(pb) pb.style.display='block';
-  // Re-Sync Button nur dem Host zeigen
   const rb=document.getElementById('resyncBtn');
   if(rb) rb.style.display = MP.host ? 'block' : 'none';
 }
 
-// ── Re-Sync: Host setzt alle Sperren zurück und pusht korrekten State ──
 window.mpResync = function(){
-  if(!MP.on || !MP.host) return;
-
-  // Alle Sperren und Flags zurücksetzen
-  aiBusy        = false;
-  actionLocked  = false;
-  isRolling     = false;
-  mustSecure    = false;
-  window._aiScheduledByHost = false;
-
-  // Falls KI gerade am Zug ist und hängt → zum nächsten menschlichen Spieler springen
-  let safetyCounter = 0;
-  while(players[currentPlayer]?.isAI && safetyCounter++ < players.length){
-    currentPlayer = (currentPlayer + 1) % players.length;
-  }
-
-  // Würfelfeld zurücksetzen
-  dice     = [];
-  selected = [];
-  selectedPoints = 0;
-  roundPoints    = 0;
-  hasRolledThisTurn = false;
-
-  renderPlayers();
-  renderDice();
-  renderStats();
-  setStatus(players[currentPlayer]?.name + ' ist am Zug. Jetzt würfeln!');
+  if(!MP.on||!MP.host) return;
+  aiBusy=false; actionLocked=false; isRolling=false;
+  mustSecure=false; window._aiScheduledByHost=false;
+  let safe=0;
+  while(players[currentPlayer]?.isAI && safe++<players.length)
+    currentPlayer=(currentPlayer+1)%players.length;
+  dice=[]; selected=[]; selectedPoints=0;
+  roundPoints=0; hasRolledThisTurn=false;
+  renderPlayers(); renderDice(); renderStats();
+  if(typeof setStatus==='function')
+    setStatus(players[currentPlayer]?.name+' ist am Zug. Jetzt würfeln!');
   MP.push();
-
-  const rb = document.getElementById('resyncBtn');
-  if(rb){ rb.textContent='✅ Unstuck!'; setTimeout(()=>{ rb.textContent='🔄 Re-Sync'; },2000); }
+  const rb=document.getElementById('resyncBtn');
+  if(rb){ rb.textContent='✅ Unstuck!'; setTimeout(()=>rb.textContent='🔄 Re-Sync',2000); }
 };
 window.closeMPOverlay = function(){
   // Overlay bleibt immer erreichbar — nur ausblenden wenn Spiel läuft
@@ -3810,19 +3781,8 @@ window.addEventListener('load', ()=>{
 
 
 <!-- ── Punkteübersicht: Button + Overlay ── -->
-<!-- Re-Sync Button — nur für Host sichtbar -->
-<button id="resyncBtn" onclick="mpResync()" style="
-  display:none;
-  position:fixed;bottom:20px;left:20px;z-index:99999;
-  padding:10px 16px;border:none;border-radius:14px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
-  color:rgba(255,255,255,.7);font-family:inherit;font-size:13px;font-weight:700;
-  cursor:pointer;backdrop-filter:blur(10px);
-" title="Spielstand synchronisieren">🔄 Re-Sync</button>
-
-<button id="punkteBtn" onclick="document.getElementById('scoreOverlay').style.display='flex'"
+<button onclick="document.getElementById('scoreOverlay').style.display='flex'"
   style="
-  display:none;
   position:fixed;bottom:20px;right:20px;z-index:99999;
   padding:10px 18px;border:none;border-radius:14px;
   background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
@@ -3867,16 +3827,76 @@ window.addEventListener('load', ()=>{
 </div>
 
 
+<!-- Re-Sync Button — nur für Host -->
+<button id="resyncBtn" onclick="mpResync()" style="
+  display:none;position:fixed;bottom:20px;left:20px;z-index:99999;
+  padding:10px 16px;border:none;border-radius:14px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);
+  color:rgba(255,255,255,.7);font-family:inherit;font-size:13px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(10px);
+" title="Spielstand synchronisieren">🔄 Re-Sync</button>
+
+<!-- Punkte Button -->
+<button id="punkteBtn" onclick="document.getElementById('scoreOverlay').style.display='flex'"
+  style="
+  display:none;position:fixed;bottom:20px;right:20px;z-index:99999;
+  padding:10px 18px;border:none;border-radius:14px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);
+  color:#fff;font-family:inherit;font-size:14px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(10px);
+">📊 Punkte</button>
+
+<!-- Punkte Overlay -->
+<div id="scoreOverlay" style="
+  display:none;position:fixed;inset:0;z-index:999999;
+  align-items:center;justify-content:center;
+  background:rgba(5,2,20,.92);backdrop-filter:blur(16px);
+" onclick="this.style.display='none'">
+  <div style="
+    background:linear-gradient(160deg,#0d0821,#180e32);
+    border:1px solid rgba(139,92,246,.3);border-radius:24px;
+    padding:28px 32px;min-width:280px;max-width:360px;
+  " onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <div style="font-weight:800;font-size:16px;letter-spacing:2px;color:rgba(255,255,255,.6)">PUNKTEÜBERSICHT</div>
+      <button onclick="document.getElementById('scoreOverlay').style.display='none'"
+        style="background:none;border:none;color:rgba(255,255,255,.5);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    <div class="scoreTable">
+      <div><span>1er</span><strong>100</strong></div>
+      <div><span>5er</span><strong>50</strong></div>
+      <div><span>3×2</span><strong>200</strong></div>
+      <div><span>3×3</span><strong>300</strong></div>
+      <div><span>3×4</span><strong>400</strong></div>
+      <div><span>3×5</span><strong>500</strong></div>
+      <div><span>3×6</span><strong>600</strong></div>
+      <div><span>3×1</span><strong>1000</strong></div>
+      <div><span>4er Pasch</span><strong>×2</strong></div>
+      <div><span>5er Pasch</span><strong>×4</strong></div>
+      <div><span>Straße</span><strong>2000</strong></div>
+      <div><span>Mindestwurf</span><strong>250</strong></div>
+    </div>
+    <div style="margin-top:14px;text-align:center;font-size:12px;color:rgba(255,255,255,.3)">
+      Tippe außen zum Schließen
+    </div>
+  </div>
+</div>
+
+<!-- Periodischer Counter-Refresh -->
 <script>
-// ── Periodischer Counter-Refresh ──
 window.addEventListener('load', ()=>{
   setInterval(()=>{
-    if(window.MP && window.MP.on && typeof updateQuick10Counter === 'function'){
-      updateQuick10Counter();
+    if(window.MP && window.MP.on && window.gameMode==='quick10'){
+      try{
+        const el=document.getElementById('quick10Counter');
+        if(el && el.style.display!=='block'){
+          el.style.display='block';
+          el.textContent=(window.currentRound||1)+' / 10';
+        }
+      }catch(e){}
     }
   }, 1500);
 });
 </script>
-
 </body>
 </html>
