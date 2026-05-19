@@ -2107,8 +2107,11 @@ if(roundPoints < 250){
 
 aiBusy = false;
 
+// Flag setzen damit hydrateMPState nicht parallel ein zweites aiTurn triggert
+window._aiScheduledByHost = true;
 setTimeout(()=>{
 
+window._aiScheduledByHost = false;
 if(players[currentPlayer] && players[currentPlayer].isAI){
 aiTurn();
 }
@@ -3233,12 +3236,17 @@ function roomRef(){
 function fixArr(v){ if(!v)return[];if(Array.isArray(v))return v;return Object.keys(v).sort((a,b)=>+a-+b).map(k=>v[k]); }
 
 // ── MP Singleton ──
+let _lastPushTs = 0; // garantiert streng steigenden ts über alle Pushes
+
 const MP = {
   on:false, host:false, myIdx:0, myName:'',
   _ref:null, _sub:null,
 
   async push(){
     if(!this.on||!this._ref) return;
+    // Monoton steigender ts — verhindert dass gleichzeitige Pushes denselben Wert haben
+    const now = Date.now();
+    _lastPushTs = now > _lastPushTs ? now : _lastPushTs + 1;
     const state = {
       players: players.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI,id:p.id||null})),
       currentPlayer, dice:[...dice], selected:[...selected],
@@ -3250,7 +3258,7 @@ const MP = {
       classicEndBy   : window._classicEndBy ?? null,
       classicGameOver: !!window._pendingClassicGameOver,
       quick10GameOver: window._pendingQuick10GameOver || null,
-      ts: Date.now()
+      ts: _lastPushTs
     };
     try{ await this._ref.child('state').set(state); }catch(e){ console.warn('MP.push:',e); }
   },
@@ -3748,12 +3756,38 @@ function _hideMPOverlay(){
   if(rb) rb.style.display = MP.host ? 'block' : 'none';
 }
 
-// ── Re-Sync: Host pusht seinen aktuellen State an alle Clients ──
+// ── Re-Sync: Host setzt alle Sperren zurück und pusht korrekten State ──
 window.mpResync = function(){
   if(!MP.on || !MP.host) return;
+
+  // Alle Sperren und Flags zurücksetzen
+  aiBusy        = false;
+  actionLocked  = false;
+  isRolling     = false;
+  mustSecure    = false;
+  window._aiScheduledByHost = false;
+
+  // Falls KI gerade am Zug ist und hängt → zum nächsten menschlichen Spieler springen
+  let safetyCounter = 0;
+  while(players[currentPlayer]?.isAI && safetyCounter++ < players.length){
+    currentPlayer = (currentPlayer + 1) % players.length;
+  }
+
+  // Würfelfeld zurücksetzen
+  dice     = [];
+  selected = [];
+  selectedPoints = 0;
+  roundPoints    = 0;
+  hasRolledThisTurn = false;
+
+  renderPlayers();
+  renderDice();
+  renderStats();
+  setStatus(players[currentPlayer]?.name + ' ist am Zug. Jetzt würfeln!');
   MP.push();
-  const rb=document.getElementById('resyncBtn');
-  if(rb){ rb.textContent='✅ Synced'; setTimeout(()=>{ rb.textContent='🔄 Re-Sync'; },1500); }
+
+  const rb = document.getElementById('resyncBtn');
+  if(rb){ rb.textContent='✅ Unstuck!'; setTimeout(()=>{ rb.textContent='🔄 Re-Sync'; },2000); }
 };
 window.closeMPOverlay = function(){
   // Overlay bleibt immer erreichbar — nur ausblenden wenn Spiel läuft
