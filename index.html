@@ -1851,14 +1851,14 @@ if(window._classicEndBy !== undefined && window.gameMode !== 'quick10'){
 // Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
 
-// Schnelle-10: Rundenerhöhung VOR dem Push — currentRound korrekt im State
-if(window.gameMode === 'quick10' && typeof window._prevPlayerForRound === 'number'){
-  const lastIdx = players.length - 1;
-  if(window._prevPlayerForRound === lastIdx && currentPlayer === 0){
-    window.currentRound = (window.currentRound || 1) + 1;
-    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
-  }
-  window._prevPlayerForRound = undefined;
+// Schnelle-10: Rundenerhöhung VOR dem Push
+// currentPlayer === 0 tritt NUR auf wenn der letzte Spieler gerade dran war
+if(window.gameMode === 'quick10' && currentPlayer === 0 && players.length > 1){
+  window.currentRound = (window.currentRound || 1) + 1;
+  try{
+    const _ce=document.getElementById('quick10Counter');
+    if(_ce){ _ce.style.display='block'; _ce.textContent=window.currentRound+' / 10'; }
+  }catch(e){}
 }
 
 if(MP.on) MP.push();
@@ -2592,9 +2592,6 @@ setTimeout(()=>{
 
         const previousPlayer = currentPlayer;
 
-        // _prevPlayerForRound für nextPlayer() bereitstellen
-        window._prevPlayerForRound = previousPlayer;
-
         const result = originalNextPlayer(comment);
 
         // Neue Runde — dynamisch, berücksichtigt nachträglich beigetretene Spieler
@@ -2605,14 +2602,19 @@ setTimeout(()=>{
             currentPlayer === 0
         ){
 
-            window.currentRound++;
-
-            updateQuick10Counter();
+            // currentRound bereits in nextPlayer() (game engine) erhöht
+            try{
+              const _cw=document.getElementById('quick10Counter');
+              if(_cw){ _cw.style.display='block'; _cw.textContent=window.currentRound+' / 10'; }
+            }catch(e){}
 
             if(window.currentRound > 10){
 
                 window.currentRound = 10;
-                updateQuick10Counter();
+                try{
+                  const _cw2=document.getElementById('quick10Counter');
+                  if(_cw2) _cw2.textContent='10 / 10';
+                }catch(e){}
 
                 const sortedPlayers =
                     [...players].sort((a,b)=>b.score-a.score);
@@ -3290,13 +3292,22 @@ function hydrateMPState(s){
   const ss = document.getElementById('setupScreen');
   if(ss) ss.style.display = 'none';
 
+
   // Spielmodus aus Firebase-State übernehmen (Gast bekommt Modus vom Host)
   if(s.mode){
     window.gameMode    = s.mode;
     window.maxRounds   = s.mode==='quick10' ? 10 : 999999;
   }
   if(typeof s.currentRound === 'number') window.currentRound = s.currentRound;
-  if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
+
+  // Counter direkt ins DOM schreiben — kein Umweg über updateQuick10Counter()
+  // verhindert dass ein falsches gameMode die Anzeige blockiert
+  if(s.mode==='quick10' || window.gameMode==='quick10'){
+    try{
+      const _el=document.getElementById('quick10Counter');
+      if(_el){ _el.style.display='block'; _el.textContent=(window.currentRound||1)+' / 10'; }
+    }catch(e){}
+  }
 
   // Fix 3: Würfelsound auf allen Geräten
   if(s.rollTs && s.rollTs !== window._mpLastRollTs){
@@ -3317,12 +3328,6 @@ function hydrateMPState(s){
     window.players = sorted.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
     setTimeout(()=>{ if(typeof finishQuick10==='function') finishQuick10(sorted); }, 400);
     return;
-  }
-
-  // Runden-Sync (Schnelle 10)
-  if(typeof s.currentRound === 'number' && s.currentRound !== window.currentRound){
-    window.currentRound = s.currentRound;
-    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
   }
 
   // Classic-Ende-Flag synchronisieren
