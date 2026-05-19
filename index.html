@@ -3261,22 +3261,22 @@ const MP = {
 
   listen(){
     if(!this._ref) return;
+
+    // ── Dedizierter Listener NUR für Rundenzähler ──
+    // Völlig isoliert vom State-Sync, kein ts-Guard, kein gameMode-Problem
+    this._ref.child('round').on('value', snap=>{
+      const r = snap.val();
+      if(typeof r !== 'number' || r < 1) return;
+      window.currentRound = r;
+      try{
+        const el = document.getElementById('quick10Counter');
+        if(el){ el.style.display='block'; el.textContent=r+' / 10'; }
+      }catch(e){}
+    });
+
     this._sub = this._ref.on('value', snap=>{
       const room = snap.val();
       if(!room) return;
-      // Rundenzähler: eigener Pfad, kein ts-Guard, immer aktuell
-      if(room.round && room.status==='playing'){
-        const _r = room.round;
-        window.currentRound = _r;
-        try{
-          const _re=document.getElementById('quick10Counter');
-          const _mode = room.mode || window.gameMode;
-          if(_re && _mode==='quick10'){
-            _re.style.display='block';
-            _re.textContent=_r+' / 10';
-          }
-        }catch(e){}
-      }
 
       if(room.status==='waiting'){ mpRenderWaiting(room); return; }
       if(room.status==='playing' && room.state){
