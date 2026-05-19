@@ -3364,8 +3364,6 @@ function hydrateMPState(s){
   if(typeof s.mustSecure==='boolean')       mustSecure        = s.mustSecure;
   if(typeof s.hasRolledThisTurn==='boolean') hasRolledThisTurn = s.hasRolledThisTurn;
 
-  // Rundenzähler-Pfad initialisieren
-  if(MP._ref) MP._ref.child('round').set(1);
   renderPlayers(); renderDice(); renderStats();
 
   // Fix 2: Wechselkommentar auf allen Clients anzeigen
@@ -3651,6 +3649,10 @@ window.mpHostStart = async function(){
   const ss=document.getElementById('setupScreen');
   if(ss) ss.style.display='none';
   _hideMPOverlay();
+
+  // Rundenzähler in Firebase initialisieren
+  if(MP._ref) MP._ref.child('round').set(1);
+  window._q10LastCP = -1;
 
   renderPlayers(); renderDice(); renderStats();
   showOverlay(players[0].name,'🎲 Spiel startet!');
