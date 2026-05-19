@@ -1852,6 +1852,18 @@ if(window._classicEndBy !== undefined && window.gameMode !== 'quick10'){
 
 // Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
+
+// Schnelle-10: Rundenerhöhung VOR dem Push — damit currentRound korrekt im State landet
+// _prevPlayerForRound wird vom wrapper gesetzt bevor originalNextPlayer aufgerufen wird
+if(window.gameMode === 'quick10' && typeof window._prevPlayerForRound === 'number'){
+  const lastIdx = players.length - 1;
+  if(window._prevPlayerForRound === lastIdx && currentPlayer === 0){
+    window.currentRound = (window.currentRound || 1) + 1;
+    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
+  }
+  window._prevPlayerForRound = undefined;
+}
+
 if(MP.on) MP.push();
 window._pendingOverlay    = null;
 window._pendingConfettiTs = null;
@@ -2583,7 +2595,12 @@ setTimeout(()=>{
 
         const previousPlayer = currentPlayer;
 
+        // _prevPlayerForRound für nextPlayer() bereitstellen (wird dort vor MP.push genutzt)
+        window._prevPlayerForRound = previousPlayer;
+
         const result = originalNextPlayer(comment);
+        // currentRound++ + MP.push() passieren jetzt INNERHALB originalNextPlayer
+        // (nur falls _prevPlayerForRound auslöst) — kein Doppel-Push mehr nötig
 
         // Neue Runde sobald der LETZTE Spieler dran war und wieder Spieler 0 dran ist
         // players.length dynamisch prüfen — berücksichtigt nachträglich beigetretene Spieler
@@ -2594,13 +2611,8 @@ setTimeout(()=>{
             currentPlayer === 0
         ){
 
-            window.currentRound++;
-
+            // currentRound wurde bereits in nextPlayer() erhöht und gepusht
             updateQuick10Counter();
-
-            // Neuen Rundenwert sofort an alle Clients pushen
-            // (originalNextPlayer hatte bereits mit dem ALTEN Wert gepusht)
-            if(window.MP && window.MP.on) window.MP.push();
 
             if(window.currentRound > 10){
 
@@ -3518,18 +3530,36 @@ async function _asNewPlayer(name, ref){
   await ref.child('players/'+newIdx).set({name, isAI:false});
 
   MP.on=true; MP.host=false; MP.myIdx=newIdx;
+  _applyModeFromState(st);   // Counter sofort zeigen, nicht auf Echo warten
   _hideMPOverlay();
   MP.listen();
   if(typeof setStatus==='function')
     setStatus('✅ '+name+' ist dabei — Startpunkte: '+startScore);
 }
 
+
+// Setzt gameMode + counter sofort nach Join — kein Warten auf Firebase-Echo
+function _applyModeFromState(st){
+  if(!st) return;
+  if(st.mode){
+    window.gameMode  = st.mode;
+    window.maxRounds = st.mode==='quick10' ? 10 : 999999;
+  }
+  if(typeof st.currentRound === 'number'){
+    window.currentRound = st.currentRound;
+    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
+  }
+}
+
 // ── Einstieg während laufendem Spiel: KI-Spieler übernehmen ──
 async function _asReplacement(name, playerKey, ref){
   const idx = parseInt(playerKey);
 
+  // State lesen um Mode + Runde sofort setzen zu können
+  const stSnap = await ref.child('state').once('value');
+  const st = stSnap.val();
+
   // Atomares Update: nur isAI+name patchen, ts erhöhen
-  // dice/selected/roundPoints des laufenden Host-Zuges bleiben erhalten
   const patch = {};
   patch['players/'+playerKey+'/name']  = name;
   patch['players/'+playerKey+'/isAI']  = false;
@@ -3538,6 +3568,7 @@ async function _asReplacement(name, playerKey, ref){
   await ref.child('players/'+playerKey).update({name, isAI:false});
 
   MP.on=true; MP.host=false; MP.myIdx=idx;
+  _applyModeFromState(st);   // Counter sofort zeigen, nicht auf Echo warten
   _hideMPOverlay();
   MP.listen();
   if(typeof setStatus==='function')
