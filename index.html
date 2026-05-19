@@ -3389,6 +3389,20 @@ function hydrateMPState(s){
         window._q10RoundPublished = newRound;
         MP._ref.child('round').set(newRound);
       }
+      // Spielende nach Runde 10
+      if(newRound > 10 && !window._quick10RankingDone){
+        window._quick10RankingDone = true;
+        window.currentRound = 10;
+        if(MP._ref) MP._ref.child('round').set(10);
+        const sortedPlayers = [...players].sort((a,b)=>b.score-a.score);
+        window._pendingQuick10GameOver = sortedPlayers.map(p=>({name:p.name,score:p.score,isAI:!!p.isAI}));
+        MP.push();
+        window._pendingQuick10GameOver = null;
+        setTimeout(()=>{
+          if(typeof showVictoryOverlay === 'function') showVictoryOverlay(sortedPlayers);
+          else if(typeof finishQuick10 === 'function') finishQuick10(sortedPlayers);
+        }, 300);
+      }
     }
     window._q10LastCP = newCP;
   }
