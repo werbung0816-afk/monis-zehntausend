@@ -2598,6 +2598,10 @@ setTimeout(()=>{
 
             updateQuick10Counter();
 
+            // Neuen Rundenwert sofort an alle Clients pushen
+            // (originalNextPlayer hatte bereits mit dem ALTEN Wert gepusht)
+            if(window.MP && window.MP.on) window.MP.push();
+
             if(window.currentRound > 10){
 
                 window.currentRound = 10;
