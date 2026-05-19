@@ -2391,10 +2391,10 @@ ${data.place}
 <div class="playerScore">${data.score}</div>
 </div>
 
-${index===2 ? `
+${index===podiumSequence.length-1 ? `
 <div class="finalButtons">
 <button class="finalBtn" onclick="location.reload()">
-Neues Spiel
+🔄 Neues Spiel
 </button>
 </div>
 ` : ''}
@@ -3683,7 +3683,19 @@ window.mpHostStart = async function(){
 
 // ── Raum verlassen ──
 window.mpLeave = function(){
-  // Host räumt auf — Raum aus Firebase löschen
+  // Während laufendem Spiel: Slot auf KI setzen — andere spielen weiter
+  if(MP.on && !MP.host && MP.myIdx >= 0 && MP._ref){
+    const AI_NAMES = ['Moni','Finn','Leni','Dani','Uwe','Silke','Sascha'];
+    const aiName = AI_NAMES[MP.myIdx % AI_NAMES.length] + ' (KI)';
+    const patch = {};
+    patch['players/'+MP.myIdx+'/isAI'] = true;
+    patch['players/'+MP.myIdx+'/name'] = aiName;
+    _lastPushTs = Date.now() > _lastPushTs ? Date.now() : _lastPushTs + 1;
+    patch['ts'] = _lastPushTs;
+    MP._ref.child('state').update(patch).catch(()=>{});
+    MP._ref.child('players/'+MP.myIdx).update({name:aiName, isAI:true}).catch(()=>{});
+  }
+  // Host beendet den Raum komplett
   if(MP.host && MP._ref){
     MP._ref.remove().catch(()=>{});
   }
@@ -3787,6 +3799,9 @@ function _hideMPOverlay(){
   if(pb) pb.style.display='block';
   const rb=document.getElementById('resyncBtn');
   if(rb) rb.style.display = MP.host ? 'block' : 'none';
+  // Verlassen-Button: für Gäste sichtbar (nicht Host — der beendet den Raum)
+  const lb=document.getElementById('leaveBtn');
+  if(lb) lb.style.display = (!MP.host && MP.myIdx >= 0) ? 'block' : 'none';
 }
 
 window.mpResync = function(){
@@ -3874,6 +3889,15 @@ window.addEventListener('load', ()=>{
   </div>
 </div>
 
+
+<!-- Verlassen-Button — während Spiel sichtbar (Gäste: Slot wird KI) -->
+<button id="leaveBtn" onclick="if(confirm('Spiel verlassen? Dein Platz wird von einer KI übernommen.')){mpLeave()}" style="
+  display:none;position:fixed;bottom:62px;left:20px;z-index:99999;
+  padding:8px 14px;border:none;border-radius:12px;
+  background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);
+  color:rgba(239,68,68,.8);font-family:inherit;font-size:12px;font-weight:700;
+  cursor:pointer;backdrop-filter:blur(10px);
+" title="Spiel verlassen">← Verlassen</button>
 
 <!-- Re-Sync Button — nur für Host -->
 <button id="resyncBtn" onclick="mpResync()" style="
