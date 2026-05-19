@@ -3867,7 +3867,8 @@ window.addEventListener('load', ()=>{
 </div>
 
 
-// ── Periodischer Counter-Refresh — stellt sicher dass alle Clients ihn sehen ──
+<script>
+// ── Periodischer Counter-Refresh ──
 window.addEventListener('load', ()=>{
   setInterval(()=>{
     if(window.MP && window.MP.on && typeof updateQuick10Counter === 'function'){
@@ -3875,6 +3876,7 @@ window.addEventListener('load', ()=>{
     }
   }, 1500);
 });
+</script>
 
 </body>
 </html>
