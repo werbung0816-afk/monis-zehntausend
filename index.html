@@ -1855,6 +1855,8 @@ window._pendingOverlay = {name: players[currentPlayer].name, comment};
 // currentPlayer === 0 tritt NUR auf wenn der letzte Spieler gerade dran war
 if(window.gameMode === 'quick10' && currentPlayer === 0 && players.length > 1){
   window.currentRound = (window.currentRound || 1) + 1;
+  // Eigener Firebase-Pfad für Rundenzähler — kein ts-Guard, sofort auf allen Geräten
+  if(MP.on && MP._ref) MP._ref.child('round').set(window.currentRound);
   try{
     const _ce=document.getElementById('quick10Counter');
     if(_ce){ _ce.style.display='block'; _ce.textContent=window.currentRound+' / 10'; }
@@ -3262,6 +3264,20 @@ const MP = {
     this._sub = this._ref.on('value', snap=>{
       const room = snap.val();
       if(!room) return;
+      // Rundenzähler: eigener Pfad, kein ts-Guard, immer aktuell
+      if(room.round && room.status==='playing'){
+        const _r = room.round;
+        window.currentRound = _r;
+        try{
+          const _re=document.getElementById('quick10Counter');
+          const _mode = room.mode || window.gameMode;
+          if(_re && _mode==='quick10'){
+            _re.style.display='block';
+            _re.textContent=_r+' / 10';
+          }
+        }catch(e){}
+      }
+
       if(room.status==='waiting'){ mpRenderWaiting(room); return; }
       if(room.status==='playing' && room.state){
         const s = room.state;
@@ -3358,6 +3374,8 @@ function hydrateMPState(s){
   if(typeof s.mustSecure==='boolean')       mustSecure        = s.mustSecure;
   if(typeof s.hasRolledThisTurn==='boolean') hasRolledThisTurn = s.hasRolledThisTurn;
 
+  // Rundenzähler-Pfad initialisieren
+  if(MP._ref) MP._ref.child('round').set(1);
   renderPlayers(); renderDice(); renderStats();
 
   // Fix 2: Wechselkommentar auf allen Clients anzeigen
