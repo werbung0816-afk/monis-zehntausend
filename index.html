@@ -1351,11 +1351,11 @@ dice.every((v,i,a)=>v===a[0]);
 renderDice();
 renderStats();
 
+// Würfelauswahl für alle Clients sichtbar machen
+if(MP.on) MP.push();
+
 isRolling = false;
 }
-
-
-function score(vals){
 
 let total=0;
 const counts={};
@@ -2076,6 +2076,9 @@ return;
 // Sperren lösen
 actionLocked = false;
 mustSecure = false;
+
+// Auswahl an alle Clients pushen — Gäste sehen Würfelauswahl vor dem Banking
+if(MP.on) MP.push();
 
 // Auswahl sichtbar lassen bevor gesichert wird
 setTimeout(()=>{
@@ -3484,14 +3487,16 @@ async function _asSpectator(){
 
 // Einstieg während laufendem Spiel: KI-Spieler übernehmen
 async function _asReplacement(name, playerKey, ref){
-  // playerKey ist der Firebase-String-Key ("0","1","2"…)
   const idx = parseInt(playerKey);
 
-  // Nur diesen einen Spieler patchen — kein vollständiges Set
+  // Spieler patchen
   await ref.child('state/players/'+playerKey+'/name').set(name);
   await ref.child('state/players/'+playerKey+'/isAI').set(false);
   await ref.child('players/'+playerKey).update({name, isAI:false});
-  await ref.update({lastActivity:Date.now()});
+
+  // state.ts aktualisieren → erzwingt hydrateMPState auf ALLEN Clients
+  // ohne ts-Update ignorieren alle Listener das Update (s.ts <= _lastTs)
+  await ref.child('state/ts').set(Date.now());
 
   MP.on=true; MP.host=false; MP.myIdx=idx;
   _hideMPOverlay();
