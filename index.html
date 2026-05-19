@@ -3382,8 +3382,13 @@ function hydrateMPState(s){
     const prevCP = (typeof window._q10LastCP === 'number') ? window._q10LastCP : -1;
     const newCP  = typeof s.currentPlayer === 'number' ? s.currentPlayer : currentPlayer;
     if(newCP === 0 && prevCP > 0){
-      window.currentRound = (window.currentRound || 1) + 1;
-      if(MP._ref) MP._ref.child('round').set(window.currentRound);
+      const newRound = (window.currentRound || 1) + 1;
+      window.currentRound = newRound;
+      // Monoton-Sperre: nie einen niedrigeren Wert als den zuletzt gesetzten pushen
+      if(MP._ref && newRound > (window._q10RoundPublished || 0)){
+        window._q10RoundPublished = newRound;
+        MP._ref.child('round').set(newRound);
+      }
     }
     window._q10LastCP = newCP;
   }
@@ -3651,6 +3656,7 @@ window.mpHostStart = async function(){
   _hideMPOverlay();
 
   // Rundenzähler in Firebase initialisieren
+  window._q10RoundPublished = 1;
   if(MP._ref) MP._ref.child('round').set(1);
   window._q10LastCP = -1;
 
