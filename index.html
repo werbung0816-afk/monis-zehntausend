@@ -1851,17 +1851,7 @@ if(window._classicEndBy !== undefined && window.gameMode !== 'quick10'){
 // Overlay + Spielstand pushen — Overlay landet via Firebase auf allen Geräten
 window._pendingOverlay = {name: players[currentPlayer].name, comment};
 
-// Schnelle-10: Rundenerhöhung VOR dem Push
-// currentPlayer === 0 tritt NUR auf wenn der letzte Spieler gerade dran war
-if(window.gameMode === 'quick10' && currentPlayer === 0 && players.length > 1){
-  window.currentRound = (window.currentRound || 1) + 1;
-  // Eigener Firebase-Pfad für Rundenzähler — kein ts-Guard, sofort auf allen Geräten
-  if(MP.on && MP._ref) MP._ref.child('round').set(window.currentRound);
-  try{
-    const _ce=document.getElementById('quick10Counter');
-    if(_ce){ _ce.style.display='block'; _ce.textContent=window.currentRound+' / 10'; }
-  }catch(e){}
-}
+// Rundenerhöhung wird vom Host via hydrateMPState erkannt und gepusht
 
 if(MP.on) MP.push();
 window._pendingOverlay    = null;
@@ -3388,6 +3378,18 @@ function hydrateMPState(s){
     }
   }
 
+  // HOST: Rundenerhöhung wenn currentPlayer auf 0 springt
+  // Zuverlässig für alle Konstellationen — auch nach Beitritt neuer Spieler
+  if(MP.host && window.gameMode === 'quick10'){
+    const prevCP = (typeof window._q10LastCP === 'number') ? window._q10LastCP : -1;
+    const newCP  = typeof s.currentPlayer === 'number' ? s.currentPlayer : currentPlayer;
+    if(newCP === 0 && prevCP > 0){
+      window.currentRound = (window.currentRound || 1) + 1;
+      if(MP._ref) MP._ref.child('round').set(window.currentRound);
+    }
+    window._q10LastCP = newCP;
+  }
+
   const isAI   = players[currentPlayer]?.isAI;
   const isMine = !isAI && currentPlayer === MP.myIdx;
   _updateTurnButtons(isMine || isAI);
@@ -3644,6 +3646,7 @@ window.mpHostStart = async function(){
   window._quick10RankingDone = false;
   window._mpLastRollTs       = 0;
   window._mpLastConfettiTs   = 0;
+  window._q10LastCP          = -1;
 
   const ss=document.getElementById('setupScreen');
   if(ss) ss.style.display='none';
