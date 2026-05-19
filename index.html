@@ -3298,12 +3298,15 @@ function hydrateMPState(s){
   const ss = document.getElementById('setupScreen');
   if(ss) ss.style.display = 'none';
 
-  // Spielmodus aus Firebase-State übernehmen (Gast bekommt Modus vom Host)
+  // Spielmodus aus Firebase-State übernehmen
   if(s.mode){
     window.gameMode    = s.mode;
     window.maxRounds   = s.mode==='quick10' ? 10 : 999999;
-    window.currentRound = window.currentRound || 1;
   }
+
+  // Runden-Sync — unkonditionell, gameMode ist jetzt korrekt gesetzt
+  if(typeof s.currentRound === 'number') window.currentRound = s.currentRound;
+  if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
 
   // Fix 3: Würfelsound auf allen Geräten
   if(s.rollTs && s.rollTs !== window._mpLastRollTs){
@@ -3324,12 +3327,6 @@ function hydrateMPState(s){
     window.players = sorted.map(p=>({name:p.name,score:p.score||0,isAI:!!p.isAI}));
     setTimeout(()=>{ if(typeof finishQuick10==='function') finishQuick10(sorted); }, 400);
     return;
-  }
-
-  // Runden-Sync (Schnelle 10)
-  if(typeof s.currentRound === 'number'){
-    window.currentRound = s.currentRound;
-    if(typeof updateQuick10Counter === 'function') updateQuick10Counter();
   }
 
   // Classic-Ende-Flag synchronisieren
@@ -3868,6 +3865,16 @@ window.addEventListener('load', ()=>{
     </div>
   </div>
 </div>
+
+
+// ── Periodischer Counter-Refresh — stellt sicher dass alle Clients ihn sehen ──
+window.addEventListener('load', ()=>{
+  setInterval(()=>{
+    if(window.MP && window.MP.on && typeof updateQuick10Counter === 'function'){
+      updateQuick10Counter();
+    }
+  }, 1500);
+});
 
 </body>
 </html>
