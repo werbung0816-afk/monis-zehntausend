@@ -531,9 +531,11 @@ body { padding:8px !important; }
 .stat  { padding:8px !important; border-radius:14px !important; }
 .stat .v { font-size:34px !important; }
 .stat > div:first-child { font-size:10px !important; letter-spacing:2px !important; }
-.diceWrap { display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:8px !important; min-height:0 !important; padding:12px !important; margin:6px 0 !important; border-radius:20px !important; align-items:center !important; }
-.die { width:100% !important; height:auto !important; aspect-ratio:1/1 !important; border-radius:18px !important; }
-.pips { transform:scale(.75) !important; }
+.diceWrap { display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:10px !important; min-height:0 !important; padding:10px !important; margin:6px 0 !important; border-radius:20px !important; align-items:center !important; }
+.die { width:100% !important; height:auto !important; aspect-ratio:1/1 !important; border-radius:18px !important; transform:none !important; }
+.die:hover { transform:none !important; }
+.die.selected { transform:none !important; outline:none !important; box-shadow:0 0 0 3px #53f6ff, 0 0 14px rgba(83,246,255,.7), inset 0 0 12px rgba(83,246,255,.15) !important; }
+.pips { transform:scale(.72) !important; }
 .cup  { grid-column:1/-1 !important; width:72px !important; height:118px !important; margin:8px auto !important; }
 .buttons { display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:6px !important; }
 .buttons button { padding:12px 4px !important; font-size:14px !important; border-radius:15px !important; }
