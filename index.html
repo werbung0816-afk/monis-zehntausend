@@ -536,7 +536,13 @@ body { padding:8px !important; }
 .die:hover { transform:none !important; }
 .die.selected { transform:none !important; outline:none !important; box-shadow:0 0 0 3px #53f6ff, 0 0 14px rgba(83,246,255,.7), inset 0 0 12px rgba(83,246,255,.15) !important; }
 .pips { transform:scale(.72) !important; }
-.cup  { grid-column:1/-1 !important; width:72px !important; height:118px !important; margin:8px auto !important; }
+.cup  { grid-column:1/-1 !important; width:72px !important; height:118px !important; margin:8px auto !important; transform:none !important; }
+.bigComment { font-size:28px !important; padding:0 16px !important; }
+.bigPlace   { font-size:clamp(44px,14vw,72px) !important; white-space:nowrap !important; }
+.victoryStage { gap:20px !important; padding:32px 16px !important; }
+.playerCard { min-width:0 !important; width:88vw !important; padding:24px 20px !important; }
+.playerName { font-size:28px !important; }
+.playerScore{ font-size:52px !important; }
 .buttons { display:grid !important; grid-template-columns:repeat(3,1fr) !important; gap:6px !important; }
 .buttons button { padding:12px 4px !important; font-size:14px !important; border-radius:15px !important; }
 .status { margin-top:6px !important; padding:8px 12px !important; border-radius:14px !important; font-size:12px !important; }
@@ -656,6 +662,7 @@ text-shadow:0 0 35px currentColor;
 font-size:96px;
 font-weight:900;
 line-height:1;
+text-align:center;
 text-shadow:0 0 35px currentColor;
 }
 
