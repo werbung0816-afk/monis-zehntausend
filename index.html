@@ -1011,7 +1011,26 @@ Schnelle 10
 </div>
 
 
+<audio id="diceSound">
+<source src="dice.mp3" type="audio/mpeg">
+</audio>
 
+<script>
+// Audio-Unlock: Browser entsperrt <audio>.play() nur nach User-Gesture.
+// Bei KI-Zügen (setTimeout) und setInterval gibt es keine Gesture →
+// einmaliges play+pause beim ersten Klick entsperrt beide Elemente dauerhaft.
+(function(){
+  let unlocked=false;
+  document.addEventListener('click',function unlock(){
+    if(unlocked) return;
+    unlocked=true;
+    const dice=document.getElementById('diceSound');
+    if(dice){ dice.play().then(()=>{ dice.pause(); dice.currentTime=0; }).catch(()=>{}); }
+    if(window.applauseAudio){ applauseAudio.play().then(()=>{ applauseAudio.pause(); applauseAudio.currentTime=0; }).catch(()=>{}); }
+    document.removeEventListener('click',unlock);
+  },{capture:true});
+})();
+</script>
 
 <div id="overlay">
 <div id="overlayComment" style="
@@ -1283,27 +1302,9 @@ return c.replace(/\[NAME\]/g, name || 'Spieler');
 }
 
 function playDiceSound(){
-try{
-  const ctx=new(window.AudioContext||window.webkitAudioContext)();
-  const sr=ctx.sampleRate;
-  // 6 kurze Klicks simulieren Würfelrollen
-  for(let c=0;c<6;c++){
-    const buf=ctx.createBuffer(1,Math.floor(sr*0.04),sr);
-    const d=buf.getChannelData(0);
-    for(let i=0;i<d.length;i++){
-      d[i]=(Math.random()*2-1)*Math.exp(-i/(sr*0.008));
-    }
-    const src=ctx.createBufferSource();
-    src.buffer=buf;
-    const g=ctx.createGain();
-    g.gain.value=0.55;
-    const f=ctx.createBiquadFilter();
-    f.type='highpass';f.frequency.value=900;
-    src.connect(f);f.connect(g);g.connect(ctx.destination);
-    src.start(ctx.currentTime+c*0.065);
-  }
-  setTimeout(()=>ctx.close(),700);
-}catch(e){}
+const a=document.getElementById('diceSound');
+a.currentTime=0;
+a.play().catch(()=>{});
 }
 
 function showOverlay(name,comment){
@@ -2242,7 +2243,8 @@ renderStats();
 
 <script>
 
-// Applaus via Web Audio API — kein externes MP3 nötig
+const applauseAudio = new Audio('applause.mp3');
+applauseAudio.volume = 0.9;
 
 
 let podiumSequence = [];
@@ -2378,33 +2380,13 @@ return html;
 }
 
 function playVictorySound(){
+
 try{
-  const ctx=new(window.AudioContext||window.webkitAudioContext)();
-  const sr=ctx.sampleRate;
-  const dur=3.5;
-  const buf=ctx.createBuffer(2,Math.floor(sr*dur),sr);
-  for(let ch=0;ch<2;ch++){
-    const d=buf.getChannelData(ch);
-    for(let i=0;i<d.length;i++){
-      const t=i/sr;
-      // Hüllkurve: schnell aufblenden, dann langsam abklingen
-      const env=Math.min(t*5,1)*Math.exp(-t*0.55);
-      // Wellenförmige Intensität wie echter Applaus
-      const wave=0.75+0.25*Math.sin(t*7.3+ch*1.1);
-      d[i]=(Math.random()*2-1)*env*wave*0.35;
-    }
-  }
-  const src=ctx.createBufferSource();
-  src.buffer=buf;
-  // Bandpass für menschliche Frequenzen
-  const f=ctx.createBiquadFilter();
-  f.type='bandpass';f.frequency.value=2200;f.Q.value=0.45;
-  const g=ctx.createGain();
-  g.gain.value=1.6;
-  src.connect(f);f.connect(g);g.connect(ctx.destination);
-  src.start();
-  setTimeout(()=>ctx.close(),(dur+0.3)*1000);
+applauseAudio.pause();
+applauseAudio.currentTime = 0;
+applauseAudio.play();
 }catch(e){}
+
 }
 
 function renderStage(index){
@@ -2970,9 +2952,9 @@ function devShowVictory(){
 // SHIFT + T = Siegeransicht testen
 document.addEventListener('keydown',(e)=>{
 
-    // Keine Shortcuts in Eingabefeldern auslösen
-    const tag = e.target.tagName;
-    if(tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
+    // Keine Shortcuts in Eingabefeldern
+    const tag=e.target.tagName;
+    if(tag==='INPUT'||tag==='TEXTAREA'||e.target.isContentEditable) return;
 
     if(e.shiftKey && e.key.toLowerCase() === 't'){
         devShowVictory();
